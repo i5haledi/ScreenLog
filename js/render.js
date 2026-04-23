@@ -662,6 +662,7 @@ function renderProfile() {
 
   c.innerHTML = `
   <input type="file" id="pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event)">
+  <input type="file" id="tvtime-csv-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
 
   <!-- ── HERO ── -->
   <div class="prof2-hero" style="${heroBg ? `background-image:url('${heroBg}')` : ''}">
@@ -685,6 +686,9 @@ function renderProfile() {
         <div class="prof2-username">@${escHtml(uname)}</div>
         <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
         ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
+        <button class="tvtime-import-btn" onclick="document.getElementById('tvtime-csv-input').click()">
+          Import from TV Time
+        </button>
       </div>
 
       <!-- Quick stats in hero -->

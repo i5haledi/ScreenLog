@@ -216,6 +216,124 @@ document.getElementById('search-input').addEventListener('blur', () => {
   setTimeout(() => document.getElementById('search-results').style.display = 'none', 200);
 });
 
+// ─── TV TIME IMPORT ───────────────────────────────────────────────────────────
+async function handleTVTimeImport(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  const text = await file.text();
+  const lines = text.trim().split('\n').slice(1); // skip header
+
+  // Status map: tvtime → screenlog
+  const statusMap = {
+    'up_to_date':     'completed',
+    'continuing':     'watching',
+    'stopped':        'watching',
+    'watch_later':    'watchlist',
+    'not_started_yet':'watchlist',
+  };
+
+  // Parse CSV rows
+  const rows = [];
+  for (const line of lines) {
+    const parts = line.split(',');
+    if (parts.length < 6) continue;
+    const tvdb_id = parts[1]?.trim();
+    const title   = parts[3]?.trim().replace(/^"|"$/g, '');
+    const status  = parts[4]?.trim();
+    const mapped  = statusMap[status];
+    if (!tvdb_id || !mapped || !title) continue;
+    rows.push({ tvdb_id, title, status: mapped });
+  }
+
+  if (!rows.length) { showToast('No valid shows found in CSV'); return; }
+
+  // Show progress modal
+  showImportModal(rows.length);
+
+  let imported = 0, failed = 0, skipped = 0;
+
+  // Process in batches of 5 with delay to avoid rate limiting
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    updateImportProgress(i + 1, rows.length, row.title);
+
+    // Skip if already in library
+    const alreadyIn = Object.values(state.shows).find(d => d.show?.name?.toLowerCase() === row.title.toLowerCase());
+    if (alreadyIn) { skipped++; continue; }
+
+    try {
+      // Find on TMDB by TVDB ID
+      const r    = await tmdbFetch(`${TMDB}/find/${row.tvdb_id}?external_source=tvdb_id`);
+      const data = await r.json();
+      const show = (data.tv_results || [])[0];
+
+      if (show) {
+        state.shows[show.id] = { show, status: row.status, watched: {} };
+        imported++;
+      } else {
+        // Fallback: search by title
+        const r2   = await tmdbFetch(`${TMDB}/search/tv?query=${encodeURIComponent(row.title)}&page=1`);
+        const d2   = await r2.json();
+        const hit  = (d2.results || [])[0];
+        if (hit) { state.shows[hit.id] = { show: hit, status: row.status, watched: {} }; imported++; }
+        else failed++;
+      }
+    } catch(e) { failed++; }
+
+    // Throttle: small delay every 5 requests
+    if ((i + 1) % 5 === 0) await new Promise(r => setTimeout(r, 300));
+  }
+
+  save();
+  closeImportModal();
+  render();
+  showToast(`Imported ${imported} shows · ${skipped} skipped · ${failed} not found`);
+}
+
+function showImportModal(total) {
+  // Create modal dynamically
+  const existing = document.getElementById('import-modal');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'import-modal';
+  el.className = 'modal-overlay';
+  el.style.cssText = 'display:flex;z-index:2000';
+  el.innerHTML = `
+    <div class="modal" style="max-width:400px">
+      <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
+        <div class="modal-info">
+          <div class="modal-title" style="font-size:20px">Importing TV Time</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Please wait, do not close this tab</div>
+        </div>
+      </div>
+      <div class="modal-body" style="padding-top:8px">
+        <div id="import-show-name" style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;min-height:20px"></div>
+        <div style="background:var(--bg-elevated);border-radius:8px;overflow:hidden;height:8px;margin-bottom:12px">
+          <div id="import-bar" style="height:100%;background:var(--accent);border-radius:8px;width:0%;transition:width 0.3s"></div>
+        </div>
+        <div id="import-count" style="font-size:12px;color:var(--text-muted);text-align:center">0 / ${total}</div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function updateImportProgress(current, total, title) {
+  const pct  = Math.round(current / total * 100);
+  const bar  = document.getElementById('import-bar');
+  const cnt  = document.getElementById('import-count');
+  const name = document.getElementById('import-show-name');
+  if (bar)  bar.style.width  = pct + '%';
+  if (cnt)  cnt.textContent  = `${current} / ${total}`;
+  if (name) name.textContent = title;
+}
+
+function closeImportModal() {
+  const el = document.getElementById('import-modal');
+  if (el) el.remove();
+}
+
 // ─── PROFILE PIC ──────────────────────────────────────────────────────────────
 function handlePicUpload(event) {
   const file = event.target.files[0];

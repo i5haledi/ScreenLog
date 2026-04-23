@@ -873,3 +873,26 @@ html, body {
   .prof2-hstat-num   { font-size: 22px; }
   .fav-grid          { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ─── TV TIME IMPORT BUTTON ──────────────────────────────────────────────── */
+.tvtime-import-btn {
+  margin-top: 12px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tvtime-import-btn:hover {
+  background: rgba(255,255,255,0.14);
+  color: white;
+  border-color: rgba(255,255,255,0.3);
+}
