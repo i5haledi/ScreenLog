@@ -580,15 +580,43 @@ html, body {
   .modal-overlay { padding: 0; align-items: flex-end; }
   .modal {
     max-width: 100%;
-    max-height: 94vh;
+    max-height: 95dvh;
     border-radius: 20px 20px 0 0;
   }
-  .modal-header { padding: 16px; gap: 14px; }
-  .modal-poster { width: 70px; height: 100px; }
-  .modal-title  { font-size: 20px; }
-  .modal-body   { padding: 16px; }
+  /* Sticky drag handle + close button pinned at top of modal on mobile */
+  .modal-header {
+    padding: 14px 14px 14px;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-surface);
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+  }
+  .modal-close {
+    width: 36px; height: 36px;
+    font-size: 22px;
+    flex-shrink: 0;
+    background: var(--bg-elevated);
+  }
+  .modal-poster { width: 60px; height: 88px; }
+  .modal-title  { font-size: 18px; letter-spacing: 1px; }
+  .modal-body   { padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom, 16px)); }
   .modal-actions { gap: 6px; }
   .btn { padding: 7px 12px; font-size: 12px; }
+
+  /* Content area safe area */
+  #content { padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)); }
 
   /* Filter buttons wrap */
   .filter-btn { padding: 6px 12px; font-size: 12px; }
