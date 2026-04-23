@@ -704,6 +704,12 @@ function renderProfile() {
     <!-- Left column -->
     <div class="prof2-left">
 
+      <!-- Favorites -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">❤️ Favorite Shows</div>
+        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
+      </div>
+
       <!-- Time card -->
       <div class="prof2-card">
         <div class="prof2-card-label">⏱ Time Spent Watching</div>
@@ -712,35 +718,37 @@ function renderProfile() {
 
       <!-- Status breakdown -->
       <div class="prof2-card">
-        <div class="prof2-card-label">📊 Library Breakdown</div>
+        <div class="prof2-card-label">📊 Top Genres</div>
         <div class="prof2-breakdown">
-          ${[
-            ['Watching',  watchingCount,  '#f4a534'],
-            ['Completed', completedCount, '#7c6aff'],
-            ['Finished',  finishedCount,  '#4caf87'],
-            ['Watchlist', watchlistCount, '#ff6b6b'],
-          ].map(([label, val, color]) => {
-            const pct = totalShows > 0 ? Math.round(val/totalShows*100) : 0;
-            return `<div class="prof2-bk-row">
-              <div class="prof2-bk-label">
-                <span class="prof2-bk-dot" style="background:${color}"></span>${label}
-              </div>
-              <div class="prof2-bk-right">
-                <div class="prof2-bk-bar-wrap">
-                  <div class="prof2-bk-bar" style="width:${pct}%;background:${color}"></div>
+          ${(() => {
+            const genreCount = {};
+            allShows.forEach(d => {
+              (d.show?.genres || []).forEach(g => {
+                genreCount[g.name] = (genreCount[g.name] || 0) + 1;
+              });
+            });
+            const sorted = Object.entries(genreCount).sort((a,b) => b[1]-a[1]).slice(0, 6);
+            const maxVal = sorted[0]?.[1] || 1;
+            const colors = ['#7c6aff','#4ecdc4','#f4a534','#ff6b6b','#4caf87','#ef5fa7'];
+            if (!sorted.length) return `<div style="color:var(--text-muted);font-size:13px;padding:10px 0">Add shows to see genre breakdown</div>`;
+            return sorted.map(([genre, count], i) => {
+              const pct = Math.round(count / maxVal * 100);
+              return `<div class="prof2-bk-row">
+                <div class="prof2-bk-label">
+                  <span class="prof2-bk-dot" style="background:${colors[i]}"></span>${escHtml(genre)}
                 </div>
-                <span class="prof2-bk-num">${val}</span>
-              </div>
-            </div>`;
-          }).join('')}
+                <div class="prof2-bk-right">
+                  <div class="prof2-bk-bar-wrap">
+                    <div class="prof2-bk-bar" style="width:${pct}%;background:${colors[i]}"></div>
+                  </div>
+                  <span class="prof2-bk-num">${count}</span>
+                </div>
+              </div>`;
+            }).join('');
+          })()}
         </div>
       </div>
 
-      <!-- Favorites -->
-      <div class="prof2-card">
-        <div class="prof2-card-label">❤️ Favorite Shows</div>
-        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
-      </div>
     </div>
 
     <!-- Right column: Charts -->
