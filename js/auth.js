@@ -11,8 +11,15 @@ auth.onAuthStateChanged(async user => {
 
   // ── 1. Load from localStorage cache INSTANTLY and render right away ──────
   _localLoad();
+  // Restore cached username immediately if we have one
+  const cachedUname = localStorage.getItem('sl_username_' + user.uid);
+  if (cachedUname) currentUsername = cachedUname;
+
   state.view = 'home';
-  setUserDisplay(user.email[0].toUpperCase(), user.email);
+  setUserDisplay(
+    (currentUsername || user.email)[0].toUpperCase(),
+    currentUsername || user.email
+  );
   render();
 
   // ── 2. Fetch username & Firestore data in background ─────────────────────
@@ -21,24 +28,46 @@ auth.onAuthStateChanged(async user => {
     const userDoc  = await db.collection('users').doc(uid).get();
     const userData = userDoc.exists ? userDoc.data() : {};
 
-    // Set username
-    currentUsername = userData.username || null;
+    // Merge Firestore data into state
+    if (userData.customLists) state.customLists  = userData.customLists;
+    if (userData.activityLog) state.activityLog  = userData.activityLog;
+    if (userData.profilePic)  state.profilePic   = userData.profilePic;
+    if (userData.favorites)   state.favorites    = userData.favorites;
+
+    // Set username from Firestore (authoritative source)
+    if (userData.username) {
+      currentUsername = userData.username;
+      localStorage.setItem('sl_username_' + uid, userData.username);
+    }
+
     setUserDisplay(
       (currentUsername || user.email)[0].toUpperCase(),
       currentUsername || user.email
     );
 
-    // If no username yet → show username setup modal
+    // Only show modal if NEITHER cache NOR Firestore has a username
     if (!currentUsername) {
-      showUsernameModal();
+      // Double-check by searching usernames collection for this uid
+      try {
+        const usernamesSnap = await db.collection('usernames').where('uid', '==', uid).limit(1).get();
+        if (!usernamesSnap.empty) {
+          const foundName = usernamesSnap.docs[0].id;
+          currentUsername = foundName;
+          localStorage.setItem('sl_username_' + uid, foundName);
+          // Also repair the user doc
+          await db.collection('users').doc(uid).set({ username: foundName }, { merge: true });
+          setUserDisplay(foundName[0].toUpperCase(), foundName);
+        } else {
+          showUsernameModal();
+        }
+      } catch(e) {
+        showUsernameModal();
+      }
     }
 
-    // Merge Firestore data into state (only if newer/exists)
-    if (userData.shows)       state.shows       = userData.shows;
-    if (userData.customLists) state.customLists  = userData.customLists;
-    if (userData.activityLog) state.activityLog  = userData.activityLog;
-    if (userData.profilePic)  state.profilePic   = userData.profilePic;
-    if (userData.favorites)   state.favorites    = userData.favorites;
+    // Load shows subcollection
+    const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
+    showsSnap.forEach(doc => { state.shows[doc.id] = doc.data(); });
 
     // Load seasons subcollection
     const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();
@@ -111,6 +140,7 @@ async function submitUsername() {
     await db.collection('users').doc(uid).set({ username: name }, { merge: true });
 
     currentUsername = name;
+    localStorage.setItem('sl_username_' + uid, name);
     setUserDisplay(name[0].toUpperCase(), name);
     hideUsernameModal();
   } catch(e) {
