@@ -616,7 +616,14 @@ html, body {
   .btn { padding: 7px 12px; font-size: 12px; }
 
   /* Content area safe area */
-  #content { padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)); }
+  #content {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 20px));
+  }
+
+  /* Sidebar safe area */
+  #sidebar {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 20px));
+  }
 
   /* Filter buttons wrap */
   .filter-btn { padding: 6px 12px; font-size: 12px; }
