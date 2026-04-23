@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screenlog — TV Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="logo">screen<span>log</span></div>
+    <div class="nav-section">
+      <div class="nav-label">Menu</div>
+      <div class="nav-item active" data-view="home" onclick="navigate('home')">
+        <span class="icon">⌂</span> Main
+      </div>
+      <div class="nav-item" data-view="watching" onclick="navigate('watching')">
+        <span class="icon">▶</span> Watching
+      </div>
+      <div class="nav-item" data-view="watchlist" onclick="navigate('watchlist')">
+        <span class="icon">＋</span> Watchlist
+      </div>
+      <div class="nav-item" data-view="completed" onclick="navigate('completed')">
+        <span class="icon">≡</span> All
+      </div>
+      <div class="nav-item" data-view="uptodate" onclick="navigate('uptodate')">
+        <span class="icon">⟳</span> Up to Date
+      </div>
+      <div class="nav-item" data-view="finished" onclick="navigate('finished')">
+        <span class="icon">⏹</span> Finished
+      </div>
+      <div class="nav-item" data-view="activity" onclick="navigate('activity')">
+        <span class="icon">⏱</span> Activity
+      </div>
+      <div class="nav-item" data-view="profile" onclick="navigate('profile')">
+        <span class="icon">◉</span> My Profile
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">My Lists</div>
+      <div id="custom-lists-nav"></div>
+      <div class="add-list-btn" onclick="openNewListModal()">
+        <span>+</span> New List
+      </div>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
+      <h1 id="view-title">Main</h1>
+      <div class="search-wrap">
+        <span class="si">⌕</span>
+        <input type="text" id="search-input" placeholder="Search TV shows…" oninput="onSearchInput()" autocomplete="off">
+        <div class="search-results" id="search-results" style="display:none"></div>
+      </div>
+      <div class="user-pill">
+        <span class="user-avatar" id="user-avatar">U</span>
+        <span class="user-email" id="user-email"></span>
+        <button class="logout-btn" onclick="logout()">Sign out</button>
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- TOAST -->
+<div id="toast"><span class="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<!-- USERNAME SETUP MODAL -->
+<div class="modal-overlay" id="username-modal" style="display:none">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
+      <div class="modal-info">
+        <div class="modal-title" style="font-size:22px">Pick a Username</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">This is how you'll appear on Screenlog. You can't change it later.</div>
+      </div>
+    </div>
+    <div class="modal-body" style="padding-top:8px">
+      <div style="margin-bottom:16px">
+        <div style="position:relative">
+          <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none">@</span>
+          <input type="text" class="input-field" id="username-input"
+            placeholder="yourname"
+            maxlength="20"
+            style="padding-left:30px"
+            oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"
+          >
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Letters, numbers and underscores only. 3–20 characters.</div>
+        <div id="username-error" style="font-size:13px;color:var(--red);margin-top:8px;min-height:18px"></div>
+      </div>
+      <button class="btn primary" id="username-btn" onclick="submitUsername()" style="width:100%;justify-content:center">Save Username</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirm-modal" style="display:none" onclick="if(event.target===this)closeConfirmModal()">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header" style="border-bottom:none;padding-bottom:0">
+      <div class="modal-info">
+        <div class="modal-title" style="font-size:20px">Mark as Watched?</div>
+      </div>
+      <button class="modal-close" onclick="closeConfirmModal()">×</button>
+    </div>
+    <div class="modal-body" style="padding-top:12px">
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:6px">You're about to mark</p>
+      <p style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px" id="confirm-ep-label"></p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px">from <span id="confirm-show-name" style="color:var(--accent)"></span> as watched.</p>
+      <div style="display:flex;gap:10px">
+        <button class="btn" onclick="closeConfirmModal()" style="flex:1">Cancel</button>
+        <button class="btn primary" onclick="confirmMarkEp()" style="flex:1">Yes, Mark Watched</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHOW MODAL -->
+<div class="modal-overlay" id="show-modal" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <img class="modal-poster" id="m-poster" src="" alt="">
+      <div class="modal-info">
+        <div class="modal-title" id="m-title"></div>
+        <div class="modal-meta" id="m-meta"></div>
+        <div class="modal-genres" id="m-genres"></div>
+        <div class="overview-box" id="m-overview"></div>
+        <div class="modal-actions" id="m-actions"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs" id="m-tabs">
+        <div class="tab active" onclick="switchTab('episodes')">Episodes</div>
+        <div class="tab" onclick="switchTab('about')">About</div>
+      </div>
+      <div id="m-tab-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- NEW LIST MODAL -->
+<div class="modal-overlay" id="list-modal" style="display:none" onclick="handleListOverlayClick(event)">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-info">
+        <div class="modal-title">New List</div>
+      </div>
+      <button class="modal-close" onclick="closeListModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:8px">List name</label>
+        <input type="text" class="input-field" id="new-list-name" placeholder="e.g. Sci-Fi Favorites">
+      </div>
+      <div>
+        <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:8px">Color</label>
+        <div class="color-swatches" id="color-swatches"></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:24px">
+        <button class="btn" onclick="closeListModal()" style="flex:1">Cancel</button>
+        <button class="btn primary" onclick="createList()" style="flex:1">Create List</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<!-- App scripts -->
+<script src="js/config.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/api.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>
