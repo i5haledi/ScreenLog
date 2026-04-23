@@ -37,6 +37,8 @@ auth.onAuthStateChanged(async user => {
     if (userData.shows)       state.shows       = userData.shows;
     if (userData.customLists) state.customLists  = userData.customLists;
     if (userData.activityLog) state.activityLog  = userData.activityLog;
+    if (userData.profilePic)  state.profilePic   = userData.profilePic;
+    if (userData.favorites)   state.favorites    = userData.favorites;
 
     // Load seasons subcollection
     const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();

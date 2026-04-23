@@ -563,8 +563,8 @@ function renderProfile() {
   const watchingCount  = allShows.filter(d => d.status === 'watching').length;
   const completedCount = allShows.filter(d => d.status === 'completed').length;
   const watchlistCount = allShows.filter(d => d.status === 'watchlist').length;
+  const finishedCount  = allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')).length;
 
-  // Build 12-month buckets
   const now    = new Date();
   const months = [];
   for (let i = 11; i >= 0; i--) {
@@ -590,61 +590,62 @@ function renderProfile() {
     if (bucket) { bucket.eps++; bucket.mins += runtime; }
   });
 
-  // ── Format total time as "X months X days X hours" ────────────────────
   function formatWatchTime(mins) {
-    const totalMins = Math.floor(mins);
-    const hours     = Math.floor(totalMins / 60);
-    const days      = Math.floor(hours / 24);
-    const remHours  = hours % 24;
-    const months    = Math.floor(days / 30);
-    const remDays   = days % 30;
-    return `<span class="time-num">${months}</span><span class="time-unit"> Month${months !== 1 ? 's' : ''} </span><span class="time-num">${remDays}</span><span class="time-unit"> Day${remDays !== 1 ? 's' : ''} </span><span class="time-num">${remHours}</span><span class="time-unit"> Hour${remHours !== 1 ? 's' : ''}</span>`;
+    const hours   = Math.floor(mins / 60);
+    const days    = Math.floor(hours / 24);
+    const mo      = Math.floor(days / 30);
+    const remDays = days % 30;
+    const remHrs  = hours % 24;
+    return `<span class="time-num">${mo}</span><span class="time-unit"> Month${mo!==1?'s':''} </span><span class="time-num">${remDays}</span><span class="time-unit"> Day${remDays!==1?'s':''} </span><span class="time-num">${remHrs}</span><span class="time-unit"> Hour${remHrs!==1?'s':''}</span>`;
   }
 
-  // ── SVG bar chart ──────────────────────────────────────────────────────
   function buildChart(data, color, gradId) {
-    const max  = Math.max(...data.map(d => d.val), 1);
-    const W    = 760, H = 160, PAD = 10, BAR_W = 36;
-    const GAP  = (W - PAD * 2 - BAR_W * data.length) / (data.length - 1);
+    const max = Math.max(...data.map(d => d.val), 1);
+    const W = 760, H = 150, PAD = 10, BAR_W = 36;
+    const GAP = (W - PAD * 2 - BAR_W * data.length) / (data.length - 1);
     const bars = data.map((d, i) => {
-      const barH = Math.max((d.val / max) * (H - 28), d.val > 0 ? 4 : 0);
-      const x    = PAD + i * (BAR_W + GAP);
-      const y    = H - 20 - barH;
+      const barH = Math.max((d.val / max) * (H - 24), d.val > 0 ? 4 : 0);
+      const x = PAD + i * (BAR_W + GAP);
+      const y = H - 18 - barH;
       return { x, y, barH, val: d.val, label: d.label };
     });
-    return `<svg viewBox="0 0 ${W} ${H + 16}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;display:block">
+    return `<svg viewBox="0 0 ${W} ${H+16}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;display:block">
       <defs>
         <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${color}" stop-opacity="0.9"/>
-          <stop offset="100%" stop-color="${color}" stop-opacity="0.2"/>
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
         </linearGradient>
       </defs>
-      <line x1="${PAD}" y1="${H-20}" x2="${W-PAD}" y2="${H-20}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-      ${bars.map(b => `
-        <g>
-          <rect x="${b.x}" y="${b.y}" width="${BAR_W}" height="${b.barH}" rx="5" fill="url(#${gradId})"/>
-          ${b.val > 0 ? `<text x="${b.x+BAR_W/2}" y="${b.y-5}" text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="9.5" font-family="Plus Jakarta Sans,sans-serif">${b.val}</text>` : ''}
-          <text x="${b.x+BAR_W/2}" y="${H+12}" text-anchor="middle" fill="rgba(255,255,255,0.28)" font-size="10.5" font-family="Plus Jakarta Sans,sans-serif">${b.label}</text>
-        </g>`).join('')}
+      <line x1="${PAD}" y1="${H-18}" x2="${W-PAD}" y2="${H-18}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+      ${bars.map(b => `<g>
+        <rect x="${b.x}" y="${b.y}" width="${BAR_W}" height="${b.barH}" rx="5" fill="url(#${gradId})"/>
+        ${b.val>0?`<text x="${b.x+BAR_W/2}" y="${b.y-5}" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9" font-family="Plus Jakarta Sans,sans-serif">${b.val}</text>`:''}
+        <text x="${b.x+BAR_W/2}" y="${H+12}" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Plus Jakarta Sans,sans-serif">${b.label}</text>
+      </g>`).join('')}
     </svg>`;
   }
 
-  const epsData  = months.map(m => ({ label: m.label, val: m.eps }));
-  const hrsData  = months.map(m => ({ label: m.label, val: Math.round(m.mins / 60) }));
+  const epsData = months.map(m => ({ label: m.label, val: m.eps }));
+  const hrsData = months.map(m => ({ label: m.label, val: Math.round(m.mins/60) }));
 
-  // ── User info ──────────────────────────────────────────────────────────
   const uname    = currentUsername || (currentUser?.email || 'User');
   const initial  = uname[0].toUpperCase();
   const joinDate = currentUser?.metadata?.creationTime
-    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month:'long', year:'numeric' }) : '';
+  const profilePic = state.profilePic || null;
 
-  // ── Favorites grid HTML ────────────────────────────────────────────────
+  // Background blur from first favorite poster
+  const firstFav = (state.favorites||[]).find(id => state.shows[id]?.show?.backdrop_path);
+  const heroBg   = firstFav && state.shows[firstFav]?.show?.backdrop_path
+    ? `https://image.tmdb.org/t/p/w1280${state.shows[firstFav].show.backdrop_path}`
+    : null;
+
   const favsHtml = [0,1,2,3].map(i => {
-    const fid  = (state.favorites || [])[i];
+    const fid  = (state.favorites||[])[i];
     const fd   = fid ? state.shows[fid] : null;
     const show = fd?.show;
     if (show) {
-      const img = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+      const img = show.poster_path ? IMG+show.poster_path : FALLBACK_IMG;
       return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
         <img src="${img}" class="fav-poster" onerror="this.src='${FALLBACK_IMG}'">
         <div class="fav-overlay">
@@ -660,106 +661,135 @@ function renderProfile() {
   }).join('');
 
   c.innerHTML = `
-    <!-- HERO -->
-    <div class="prof-hero">
-      <div class="prof-hero-bg"></div>
-      <div class="prof-hero-content">
-        <div class="prof-avatar-wrap">
-          <div class="prof-avatar">${initial}</div>
-          <div class="prof-online-dot"></div>
+  <input type="file" id="pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event)">
+
+  <!-- ── HERO ── -->
+  <div class="prof2-hero" style="${heroBg ? `background-image:url('${heroBg}')` : ''}">
+    <div class="prof2-hero-overlay"></div>
+    <div class="prof2-hero-inner">
+
+      <!-- Avatar -->
+      <div class="prof2-avatar-wrap" onclick="document.getElementById('pic-input').click()" title="Change photo">
+        ${profilePic
+          ? `<img src="${profilePic}" class="prof2-avatar-img">`
+          : `<div class="prof2-avatar-initial">${initial}</div>`}
+        <div class="prof2-avatar-edit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
         </div>
-        <div class="prof-hero-text">
-          <div class="prof-username">@${escHtml(uname)}</div>
-          <div class="prof-email">${escHtml(currentUser?.email || '')}</div>
-          ${joinDate ? `<div class="prof-since">Member since ${joinDate}</div>` : ''}
+      </div>
+
+      <!-- Info -->
+      <div class="prof2-info">
+        <div class="prof2-username">@${escHtml(uname)}</div>
+        <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
+        ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
+      </div>
+
+      <!-- Quick stats in hero -->
+      <div class="prof2-hero-stats">
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${totalShows}</div><div class="prof2-hstat-label">Shows</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${totalEpsWatched}</div><div class="prof2-hstat-label">Episodes</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${Math.round(totalMinutes/60)}</div><div class="prof2-hstat-label">Hours</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BODY ── -->
+  <div class="prof2-body">
+
+    <!-- Left column -->
+    <div class="prof2-left">
+
+      <!-- Time card -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">⏱ Time Spent Watching</div>
+        <div class="prof-time-value" style="font-size:32px;margin-top:10px">${formatWatchTime(totalMinutes)}</div>
+      </div>
+
+      <!-- Status breakdown -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">📊 Library Breakdown</div>
+        <div class="prof2-breakdown">
+          ${[
+            ['Watching',  watchingCount,  '#f4a534'],
+            ['Completed', completedCount, '#7c6aff'],
+            ['Finished',  finishedCount,  '#4caf87'],
+            ['Watchlist', watchlistCount, '#ff6b6b'],
+          ].map(([label, val, color]) => {
+            const pct = totalShows > 0 ? Math.round(val/totalShows*100) : 0;
+            return `<div class="prof2-bk-row">
+              <div class="prof2-bk-label">
+                <span class="prof2-bk-dot" style="background:${color}"></span>${label}
+              </div>
+              <div class="prof2-bk-right">
+                <div class="prof2-bk-bar-wrap">
+                  <div class="prof2-bk-bar" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <span class="prof2-bk-num">${val}</span>
+              </div>
+            </div>`;
+          }).join('')}
         </div>
       </div>
-    </div>
 
-    <!-- FAVORITES FIRST -->
-    <div class="prof-section-label">Favorite Shows</div>
-    <div class="fav-grid">${favsHtml}</div>
-
-    <!-- STATS CARD -->
-    <div class="prof-stats-card">
-      <div class="prof-stat-col">
-        <div class="prof-stat-label">Total Shows</div>
-        <div class="prof-stat-big" style="color:var(--accent)">${totalShows}</div>
-      </div>
-      <div class="prof-stat-divider"></div>
-      <div class="prof-stat-col">
-        <div class="prof-stat-label">Episodes Watched</div>
-        <div class="prof-stat-big" style="color:var(--accent3)">${totalEpsWatched}</div>
-      </div>
-      <div class="prof-stat-divider"></div>
-      <div class="prof-stat-col">
-        <div class="prof-stat-label">Watching</div>
-        <div class="prof-stat-big" style="color:var(--amber)">${watchingCount}</div>
-      </div>
-      <div class="prof-stat-divider"></div>
-      <div class="prof-stat-col">
-        <div class="prof-stat-label">Completed</div>
-        <div class="prof-stat-big" style="color:var(--green)">${completedCount}</div>
-      </div>
-      <div class="prof-stat-divider"></div>
-      <div class="prof-stat-col">
-        <div class="prof-stat-label">Watchlist</div>
-        <div class="prof-stat-big" style="color:var(--accent2)">${watchlistCount}</div>
+      <!-- Favorites -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">❤️ Favorite Shows</div>
+        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
       </div>
     </div>
 
-    <!-- TIME SPENT -->
-    <div class="prof-time-card">
-      <div class="prof-time-label">Time spent watching episodes</div>
-      <div class="prof-time-value">${formatWatchTime(totalMinutes)}</div>
-    </div>
-
-    <!-- CHARTS -->
-    <div class="prof-charts-row">
-      <div class="prof-chart-card">
-        <div class="prof-chart-header">
+    <!-- Right column: Charts -->
+    <div class="prof2-right">
+      <div class="prof2-card">
+        <div class="prof2-chart-hdr">
           <div>
-            <div class="prof-chart-title">Episodes Watched</div>
-            <div class="prof-chart-sub">per month · last 12 months</div>
+            <div class="prof2-card-label">📺 Episodes per Month</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
-          <div class="prof-chart-total" style="color:#7c6aff">${totalEpsWatched} total</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#7c6aff;letter-spacing:1px">${totalEpsWatched}</div>
         </div>
-        ${buildChart(epsData, '#7c6aff', 'grad-eps')}
+        ${buildChart(epsData,'#7c6aff','grad-eps2')}
       </div>
-      <div class="prof-chart-card">
-        <div class="prof-chart-header">
-          <div>
-            <div class="prof-chart-title">Hours Watched</div>
-            <div class="prof-chart-sub">per month · last 12 months</div>
-          </div>
-          <div class="prof-chart-total" style="color:#4ecdc4">${Math.round(totalMinutes/60).toLocaleString()} hrs</div>
-        </div>
-        ${buildChart(hrsData, '#4ecdc4', 'grad-hrs')}
-      </div>
-    </div>
 
-    <!-- FAVORITE PICKER -->
-    <div class="modal-overlay" id="fav-picker-modal" style="display:none" onclick="if(event.target===this)closeFavoritePicker()">
-      <div class="modal" style="max-width:480px">
-        <div class="modal-header">
-          <div class="modal-info"><div class="modal-title">Pick a Favorite</div></div>
-          <button class="modal-close" onclick="closeFavoritePicker()">×</button>
-        </div>
-        <div class="modal-body" style="max-height:420px;overflow-y:auto">
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;padding:4px">
-            ${allShows.filter(d => d.show).map(d => {
-              const img     = d.show.poster_path ? IMG + d.show.poster_path : FALLBACK_IMG;
-              const already = (state.favorites||[]).includes(String(d.show.id));
-              return `<div class="fav-pick-item${already?' fav-pick-taken':''}" onclick="setFavorite(window._favSlot,${d.show.id})">
-                <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block">
-                <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(d.show.name)}</div>
-                ${already?`<div style="font-size:10px;color:var(--text-muted);text-align:center">Already added</div>`:''}
-              </div>`;
-            }).join('')}
-            ${allShows.length === 0 ? `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No shows in your library yet</div>` : ''}
+      <div class="prof2-card">
+        <div class="prof2-chart-hdr">
+          <div>
+            <div class="prof2-card-label">🕐 Hours per Month</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ecdc4;letter-spacing:1px">${Math.round(totalMinutes/60)} hrs</div>
+        </div>
+        ${buildChart(hrsData,'#4ecdc4','grad-hrs2')}
+      </div>
+    </div>
+  </div>
+
+  <!-- FAVORITE PICKER -->
+  <div class="modal-overlay" id="fav-picker-modal" style="display:none" onclick="if(event.target===this)closeFavoritePicker()">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <div class="modal-info"><div class="modal-title">Pick a Favorite</div></div>
+        <button class="modal-close" onclick="closeFavoritePicker()">×</button>
+      </div>
+      <div class="modal-body" style="max-height:420px;overflow-y:auto">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;padding:4px">
+          ${allShows.filter(d=>d.show).map(d => {
+            const img     = d.show.poster_path ? IMG+d.show.poster_path : FALLBACK_IMG;
+            const already = (state.favorites||[]).includes(String(d.show.id));
+            return `<div class="fav-pick-item${already?' fav-pick-taken':''}" onclick="setFavorite(window._favSlot,${d.show.id})">
+              <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block">
+              <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(d.show.name)}</div>
+              ${already?`<div style="font-size:10px;color:var(--text-muted);text-align:center">Already added</div>`:''}
+            </div>`;
+          }).join('')}
+          ${allShows.length===0 ? `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No shows in your library yet</div>` : ''}
         </div>
       </div>
     </div>
-  `;
+  </div>`;
 }

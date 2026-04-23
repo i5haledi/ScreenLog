@@ -216,6 +216,41 @@ document.getElementById('search-input').addEventListener('blur', () => {
   setTimeout(() => document.getElementById('search-results').style.display = 'none', 200);
 });
 
+// ─── PROFILE PIC ──────────────────────────────────────────────────────────────
+function handlePicUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) { showToast('Image must be under 3MB'); return; }
+  const reader = new FileReader();
+  reader.onload = async e => {
+    // Resize to max 300x300 before saving
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const size   = 300;
+      canvas.width = canvas.height = size;
+      const ctx    = canvas.getContext('2d');
+      const scale  = Math.max(size/img.width, size/img.height);
+      const w      = img.width  * scale;
+      const h      = img.height * scale;
+      ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+      const base64 = canvas.toDataURL('image/jpeg', 0.8);
+      state.profilePic = base64;
+      save();
+      // Save to Firestore
+      if (currentUser) {
+        try {
+          await db.collection('users').doc(currentUser.uid).set({ profilePic: base64 }, { merge: true });
+        } catch(e) {}
+      }
+      renderProfile();
+      showToast('Profile photo updated');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 // ─── FAVORITES ────────────────────────────────────────────────────────────────
 function openFavoritePicker(slot) {
   window._favSlot = slot;
