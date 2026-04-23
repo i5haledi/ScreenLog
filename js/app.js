@@ -243,6 +243,7 @@ function handlePicUpload(event) {
           await db.collection('users').doc(currentUser.uid).set({ profilePic: base64 }, { merge: true });
         } catch(e) {}
       }
+      setUserDisplay((currentUsername || currentUser?.email || 'U')[0], currentUsername || currentUser?.email || '');
       renderProfile();
       showToast('Profile photo updated');
     };

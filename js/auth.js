@@ -56,8 +56,18 @@ auth.onAuthStateChanged(async user => {
 function setUserDisplay(initial, label) {
   const avatarEl = document.getElementById('user-avatar');
   const emailEl  = document.getElementById('user-email');
-  if (avatarEl) avatarEl.textContent = initial.toUpperCase();
-  if (emailEl)  emailEl.textContent  = label;
+  if (avatarEl) {
+    if (state.profilePic) {
+      avatarEl.style.backgroundImage = `url('${state.profilePic}')`;
+      avatarEl.style.backgroundSize  = 'cover';
+      avatarEl.style.backgroundPosition = 'center';
+      avatarEl.textContent = '';
+    } else {
+      avatarEl.style.backgroundImage = '';
+      avatarEl.textContent = initial.toUpperCase();
+    }
+  }
+  if (emailEl) emailEl.textContent = label;
 }
 
 // ─── USERNAME MODAL ───────────────────────────────────────────────────────────
