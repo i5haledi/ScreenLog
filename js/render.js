@@ -107,7 +107,7 @@ function renderHome() {
 
   if (!watching.length && !watchlist.length && !completed.length) {
     html += `<div class="empty-state">
-      <div class="big">📺</div>
+      <div class="big">▶</div>
       <h3>Your tracker is empty</h3>
       <p>Search for TV shows above to start tracking your progress</p>
     </div>`;
@@ -144,7 +144,7 @@ function renderShelfView(status, title) {
       </div>`;
 
     if (!filtered.length) {
-      html += `<div class="empty-state"><div class="big">📺</div><h3>Nothing here</h3><p>No shows match this filter yet</p></div>`;
+      html += `<div class="empty-state"><div class="big">▶</div><h3>Nothing here</h3><p>No shows match this filter yet</p></div>`;
     } else {
       html += `<div class="show-grid">`;
       filtered.forEach(d => {
@@ -160,7 +160,7 @@ function renderShelfView(status, title) {
   const shows = getShows(status);
   if (!shows.length) {
     c.innerHTML = `<div class="empty-state">
-      <div class="big">${status === 'watchlist' ? '🔖' : '▶'}</div>
+      <div class="big">${status === 'watchlist' ? '＋' : '▶'}</div>
       <h3>Nothing here yet</h3>
       <p>Search for shows and add them to this list</p>
     </div>`;
@@ -196,7 +196,7 @@ function renderFinished() {
   const c = document.getElementById('content');
   const shows = getShows('completed').filter(d => d.show?.status === 'Ended' || d.show?.status === 'Canceled');
   if (!shows.length) {
-    c.innerHTML = `<div class="empty-state"><div class="big">⬛</div><h3>Nothing here yet</h3><p>Completed shows that have fully ended will appear here</p></div>`;
+    c.innerHTML = `<div class="empty-state"><div class="big">■</div><h3>Nothing here yet</h3><p>Completed shows that have fully ended will appear here</p></div>`;
     return;
   }
   let html = `<div class="section-header"><div class="section-title">Finished</div><span class="section-count">${shows.length} shows</span></div><div class="show-grid">`;
@@ -222,7 +222,7 @@ function renderCustomList(id) {
     </div>
   </div>`;
   if (!shows.length) {
-    html += `<div class="empty-state"><div class="big">📋</div><h3>This list is empty</h3><p>Open a show and add it to <strong>${escHtml(list.name)}</strong></p></div>`;
+    html += `<div class="empty-state"><div class="big">≡</div><h3>This list is empty</h3><p>Open a show and add it to <strong>${escHtml(list.name)}</strong></p></div>`;
   } else {
     html += `<div class="show-grid">`;
     shows.forEach(d => html += showCard(d.show, d.status));
@@ -279,7 +279,7 @@ function renderActivity() {
     return;
   }
 
-  const iconMap    = { ep: '▶', done: '✓', add: '＋', list: '◈', wl: '🔖', remove: '✕' };
+  const iconMap    = { ep: '▶', done: '✓', add: '＋', list: '◈', wl: '◈', remove: '✕' };
   const typeLabels = {
     ep:     a => `Watched <span class="show-name">${escHtml(a.detail)}</span> · <strong>${escHtml(a.showName)}</strong>`,
     done:   a => `Marked <strong>${escHtml(a.showName)}</strong> as <span style="color:var(--green);font-weight:600">Completed</span>`,
@@ -706,19 +706,19 @@ function renderProfile() {
 
       <!-- Favorites -->
       <div class="prof2-card">
-        <div class="prof2-card-label">❤️ Favorite Shows</div>
+        <div class="prof2-card-label">Favorite Shows</div>
         <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
       </div>
 
       <!-- Time card -->
       <div class="prof2-card">
-        <div class="prof2-card-label">⏱ Time Spent Watching</div>
+        <div class="prof2-card-label">Time Spent Watching</div>
         <div class="prof-time-value" style="font-size:32px;margin-top:10px">${formatWatchTime(totalMinutes)}</div>
       </div>
 
       <!-- Status breakdown -->
       <div class="prof2-card">
-        <div class="prof2-card-label">📊 Top Genres</div>
+        <div class="prof2-card-label">Top Genres</div>
         <div class="prof2-breakdown">
           ${(() => {
             const genreCount = {};
@@ -756,7 +756,7 @@ function renderProfile() {
       <div class="prof2-card">
         <div class="prof2-chart-hdr">
           <div>
-            <div class="prof2-card-label">📺 Episodes per Month</div>
+            <div class="prof2-card-label">Episodes per Month</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#7c6aff;letter-spacing:1px">${totalEpsWatched}</div>
@@ -767,7 +767,7 @@ function renderProfile() {
       <div class="prof2-card">
         <div class="prof2-chart-hdr">
           <div>
-            <div class="prof2-card-label">🕐 Hours per Month</div>
+            <div class="prof2-card-label">Hours per Month</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ecdc4;letter-spacing:1px">${Math.round(totalMinutes/60)} hrs</div>

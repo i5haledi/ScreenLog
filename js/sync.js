@@ -41,6 +41,8 @@ async function _firestoreSave() {
       shows:       state.shows,
       customLists: state.customLists,
       activityLog: (state.activityLog || []).slice(0, 100),
+      favorites:   state.favorites   || [],
+      profilePic:  state.profilePic  || null,
     }, { merge: true });
   } catch(e) {
     console.warn('Firestore save failed:', e);
