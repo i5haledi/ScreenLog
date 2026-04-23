@@ -250,19 +250,29 @@ async function executeClearLibrary() {
   state.activityLog = [];
   state.customLists = [];
   state.favorites   = [];
-  save();
-  // Clear from Firestore too
+  _localSave();
   if (currentUser) {
     try {
-      await db.collection('users').doc(currentUser.uid).set({
-        shows: {}, customLists: [], activityLog: [], favorites: [], profilePic: state.profilePic || null
-      });
-      // Clear seasons subcollection
-      const seasonsSnap = await db.collection('users').doc(currentUser.uid).collection('seasons').get();
-      const batch = db.batch();
-      seasonsSnap.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-    } catch(e) {}
+      const uid = currentUser.uid;
+      // Clear main doc
+      await db.collection('users').doc(uid).set({
+        customLists: [], activityLog: [], favorites: [], profilePic: state.profilePic || null
+      }, { merge: true });
+      // Delete shows subcollection in batches
+      const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
+      if (!showsSnap.empty) {
+        const batch = db.batch();
+        showsSnap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+      // Delete seasons subcollection
+      const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();
+      if (!seasonsSnap.empty) {
+        const batch2 = db.batch();
+        seasonsSnap.forEach(doc => batch2.delete(doc.ref));
+        await batch2.commit();
+      }
+    } catch(e) { console.warn('Clear failed:', e); }
   }
   render();
   showToast('Library cleared');
@@ -352,7 +362,11 @@ async function handleTVTimeImport(event) {
     if ((i + 1) % 3 === 0) await new Promise(r => setTimeout(r, 250));
   }
 
-  save();
+  _localSave();
+  // Save all shows to Firestore in batches (avoids 1MB doc limit)
+  updateImportProgress(rows.length, rows.length, 'Saving to cloud...');
+  await syncSaveAllShows();
+  await _firestoreSaveMain();
   closeImportModal();
   runUpToDateCheck();
   render();
