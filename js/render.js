@@ -686,9 +686,14 @@ function renderProfile() {
         <div class="prof2-username">@${escHtml(uname)}</div>
         <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
         ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
-        <button class="tvtime-import-btn" onclick="document.getElementById('tvtime-csv-input').click()">
-          Import from TV Time
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="tvtime-import-btn" onclick="document.getElementById('tvtime-csv-input').click()">
+            Import from TV Time
+          </button>
+          <button class="tvtime-import-btn" style="border-color:rgba(255,91,91,0.35);color:rgba(255,100,100,0.8)" onclick="confirmClearLibrary()">
+            Clear Library
+          </button>
+        </div>
       </div>
 
       <!-- Quick stats in hero -->

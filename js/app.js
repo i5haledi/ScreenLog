@@ -216,6 +216,58 @@ document.getElementById('search-input').addEventListener('blur', () => {
   setTimeout(() => document.getElementById('search-results').style.display = 'none', 200);
 });
 
+// ─── CLEAR LIBRARY ────────────────────────────────────────────────────────────
+function confirmClearLibrary() {
+  const el = document.createElement('div');
+  el.id = 'clear-modal';
+  el.className = 'modal-overlay';
+  el.style.cssText = 'display:flex;z-index:2000';
+  el.innerHTML = `
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header" style="border-bottom:none;padding-bottom:0">
+        <div class="modal-info">
+          <div class="modal-title" style="font-size:20px;color:var(--red)">Clear Library?</div>
+        </div>
+        <button class="modal-close" onclick="document.getElementById('clear-modal').remove()">×</button>
+      </div>
+      <div class="modal-body" style="padding-top:10px">
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6">
+          This will permanently delete <strong>all ${Object.keys(state.shows).length} shows</strong> from your library including watch history, custom lists, and activity log. This cannot be undone.
+        </p>
+        <div style="display:flex;gap:10px">
+          <button class="btn" onclick="document.getElementById('clear-modal').remove()" style="flex:1">Cancel</button>
+          <button class="btn danger" onclick="executeClearLibrary()" style="flex:1;background:rgba(255,91,91,0.12)">Yes, Clear Everything</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+async function executeClearLibrary() {
+  document.getElementById('clear-modal')?.remove();
+  state.shows       = {};
+  state.seasons     = {};
+  state.activityLog = [];
+  state.customLists = [];
+  state.favorites   = [];
+  save();
+  // Clear from Firestore too
+  if (currentUser) {
+    try {
+      await db.collection('users').doc(currentUser.uid).set({
+        shows: {}, customLists: [], activityLog: [], favorites: [], profilePic: state.profilePic || null
+      });
+      // Clear seasons subcollection
+      const seasonsSnap = await db.collection('users').doc(currentUser.uid).collection('seasons').get();
+      const batch = db.batch();
+      seasonsSnap.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    } catch(e) {}
+  }
+  render();
+  showToast('Library cleared');
+}
+
 // ─── TV TIME IMPORT ───────────────────────────────────────────────────────────
 async function handleTVTimeImport(event) {
   const file = event.target.files[0];
