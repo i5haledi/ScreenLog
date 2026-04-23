@@ -896,3 +896,21 @@ html, body {
   color: white;
   border-color: rgba(255,255,255,0.3);
 }
+
+/* ─── MULTI-SELECT ───────────────────────────────────────────────────────── */
+.show-card-selected {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.show-select-check {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.show-select-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}

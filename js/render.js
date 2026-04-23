@@ -130,12 +130,15 @@ function renderShelfView(status, title) {
     };
     const filtered = byFilter[completedFilter] || allShows;
 
-    let html = `
-      <div class="section-header" style="margin-bottom:16px">
-        <div class="section-title">${title}</div>
-        <span class="section-count">${filtered.length} shows</span>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
+  let html = `<div class="section-header" style="margin-bottom:16px">
+    <div class="section-title">${title}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="section-count">${filtered.length} shows</span>
+      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="toggleSelectMode()">${window._selectMode ? 'Cancel' : 'Select'}</button>
+      ${window._selectMode && window._selectedShows?.size > 0 ? `<button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>` : ''}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
         ${['all','watching','finished','uptodate'].map(f => `
           <button class="filter-btn${completedFilter === f ? ' active' : ''}" onclick="setCompletedFilter('${f}')">
             ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date' }[f]}
@@ -166,7 +169,14 @@ function renderShelfView(status, title) {
     </div>`;
     return;
   }
-  let html = `<div class="section-header"><div class="section-title">${title}</div><span class="section-count">${shows.length} shows</span></div>`;
+  let html = `<div class="section-header">
+    <div class="section-title">${title}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="section-count">${shows.length} shows</span>
+      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="toggleSelectMode()">${window._selectMode ? 'Cancel' : 'Select'}</button>
+      ${window._selectMode && window._selectedShows?.size > 0 ? `<button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>` : ''}
+    </div>
+  </div>`;
   html += `<div class="show-grid">`;
   shows.forEach(d => html += showCard(d.show, status));
   html += `</div>`;
@@ -236,23 +246,32 @@ function showCard(show, status) {
   const d          = state.shows[show.id] || {};
   const totalEps   = countTotalEps(d);
   const watchedEps = Object.values(d.watched || {}).filter(Boolean).length;
-  const pct        = totalEps > 0 ? Math.round(watchedEps / totalEps * 100) : 0;
+  // If completed/uptodate with no episode tracking, assume 100%
+  const isCompleted = status === 'completed' || status === 'uptodate';
+  const hasNoTracking = watchedEps === 0 && Object.keys(d.watched || {}).length === 0;
+  const pct        = isCompleted && hasNoTracking ? 100
+    : totalEps > 0 ? Math.round(watchedEps / totalEps * 100) : 0;
   const r          = 14;
   const circ       = 2 * Math.PI * r;
   const offset     = circ - (pct / 100) * circ;
   const badgeMap   = { watching: 'Watching', completed: 'Done', watchlist: 'Watchlist', uptodate: 'Up to Date' };
   const ringColor  = status === 'uptodate' ? '#4caf87' : status === 'watching' ? '#f4a534' : '#7c6aff';
   const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+  const isSelected = window._selectedShows?.has(String(show.id));
+  const inSelectMode = !!window._selectMode;
 
   return `
-    <div class="show-card" onclick="openShow(${show.id})">
+    <div class="show-card${isSelected ? ' show-card-selected' : ''}" onclick="${inSelectMode ? `toggleSelectShow(${show.id})` : `openShow(${show.id})`}">
+      ${inSelectMode ? `<div class="show-select-check${isSelected ? ' checked' : ''}">
+        ${isSelected ? `<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9 10.5,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ''}
+      </div>` : ''}
       <img class="show-card-poster" src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy">
       ${badgeMap[status] ? `<div class="show-card-badge" style="color:${ringColor}">${badgeMap[status]}</div>` : ''}
       <div class="show-card-body">
         <div class="show-card-title">${escHtml(show.name)}</div>
         <div class="show-card-meta">
           <span class="show-card-year">${(show.first_air_date || '').slice(0, 4)}</span>
-          ${totalEps > 0 ? `
+          ${totalEps > 0 || (isCompleted && hasNoTracking) ? `
           <div class="progress-ring">
             <svg width="34" height="34" viewBox="0 0 34 34">
               <circle cx="17" cy="17" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2.5"/>

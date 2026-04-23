@@ -216,6 +216,38 @@ document.getElementById('search-input').addEventListener('blur', () => {
   setTimeout(() => document.getElementById('search-results').style.display = 'none', 200);
 });
 
+// ─── MULTI-SELECT ─────────────────────────────────────────────────────────────
+function toggleSelectMode() {
+  window._selectMode    = !window._selectMode;
+  window._selectedShows = new Set();
+  render();
+}
+
+function toggleSelectShow(id) {
+  if (!window._selectedShows) window._selectedShows = new Set();
+  const sid = String(id);
+  if (window._selectedShows.has(sid)) window._selectedShows.delete(sid);
+  else window._selectedShows.add(sid);
+  render();
+}
+
+function deleteSelectedShows() {
+  const ids = [...(window._selectedShows || [])];
+  if (!ids.length) return;
+  ids.forEach(id => {
+    delete state.shows[id];
+    state.customLists.forEach(l => { if (l.showIds) l.showIds = l.showIds.filter(s => s !== id); });
+    if (currentUser) {
+      db.collection('users').doc(currentUser.uid).collection('shows').doc(id).delete().catch(()=>{});
+    }
+  });
+  window._selectMode    = false;
+  window._selectedShows = new Set();
+  save();
+  render();
+  showToast(`Deleted ${ids.length} show${ids.length > 1 ? 's' : ''}`);
+}
+
 // ─── CLEAR LIBRARY ────────────────────────────────────────────────────────────
 function confirmClearLibrary() {
   const el = document.createElement('div');
