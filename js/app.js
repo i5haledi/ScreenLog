@@ -264,30 +264,45 @@ async function handleTVTimeImport(event) {
     if (alreadyIn) { skipped++; continue; }
 
     try {
-      // Find on TMDB by TVDB ID
+      let show = null;
+
+      // Find on TMDB by TVDB ID first
       const r    = await tmdbFetch(`${TMDB}/find/${row.tvdb_id}?external_source=tvdb_id`);
       const data = await r.json();
-      const show = (data.tv_results || [])[0];
+      const hit  = (data.tv_results || [])[0];
+
+      if (hit) {
+        // Fetch full details to get status, number_of_episodes, genres etc.
+        const r2   = await tmdbFetch(`${TMDB}/tv/${hit.id}`);
+        const full = await r2.json();
+        show = full.id ? full : hit;
+      } else {
+        // Fallback: search by title
+        const r3  = await tmdbFetch(`${TMDB}/search/tv?query=${encodeURIComponent(row.title)}&page=1`);
+        const d3  = await r3.json();
+        const res = (d3.results || [])[0];
+        if (res) {
+          const r4   = await tmdbFetch(`${TMDB}/tv/${res.id}`);
+          const full = await r4.json();
+          show = full.id ? full : res;
+        }
+      }
 
       if (show) {
         state.shows[show.id] = { show, status: row.status, watched: {} };
         imported++;
       } else {
-        // Fallback: search by title
-        const r2   = await tmdbFetch(`${TMDB}/search/tv?query=${encodeURIComponent(row.title)}&page=1`);
-        const d2   = await r2.json();
-        const hit  = (d2.results || [])[0];
-        if (hit) { state.shows[hit.id] = { show: hit, status: row.status, watched: {} }; imported++; }
-        else failed++;
+        failed++;
       }
     } catch(e) { failed++; }
 
-    // Throttle: small delay every 5 requests
-    if ((i + 1) % 5 === 0) await new Promise(r => setTimeout(r, 300));
+    // Throttle: delay every 3 requests to stay within TMDB rate limits
+    if ((i + 1) % 3 === 0) await new Promise(r => setTimeout(r, 250));
   }
 
   save();
   closeImportModal();
+  runUpToDateCheck();
   render();
   showToast(`Imported ${imported} shows · ${skipped} skipped · ${failed} not found`);
 }
@@ -305,7 +320,7 @@ function showImportModal(total) {
       <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
         <div class="modal-info">
           <div class="modal-title" style="font-size:20px">Importing TV Time</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Please wait, do not close this tab</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Fetching full show details — please wait, do not close this tab</div>
         </div>
       </div>
       <div class="modal-body" style="padding-top:8px">
