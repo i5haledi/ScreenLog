@@ -6,6 +6,8 @@ function render() {
   if      (v === 'home')     renderHome();
   else if (v === 'watching') renderShelfView('watching', 'Currently Watching');
   else if (v === 'watchlist') renderShelfView('watchlist', 'Watchlist');
+  else if (v === 'watchlater') renderShelfView('watchlater', 'Watch Later');
+  else if (v === 'stopped')  renderShelfView('stopped', 'Stopped');
   else if (v === 'completed') renderShelfView('completed', 'All');
   else if (v === 'uptodate') renderUpToDate();
   else if (v === 'finished') renderFinished();
@@ -123,10 +125,13 @@ function renderShelfView(status, title) {
   if (status === 'completed') {
     const allShows = Object.values(state.shows);
     const byFilter = {
-      all:      allShows,
-      watching: allShows.filter(d => d.status === 'watching'),
-      finished: allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
-      uptodate: allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
+      all:        allShows,
+      watching:   allShows.filter(d => d.status === 'watching'),
+      finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
+      uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
+      stopped:    allShows.filter(d => d.status === 'stopped'),
+      watchlater: allShows.filter(d => d.status === 'watchlater'),
+      watchlist:  allShows.filter(d => d.status === 'watchlist'),
     };
     const filtered = byFilter[completedFilter] || allShows;
 
@@ -135,13 +140,19 @@ function renderShelfView(status, title) {
     <div style="display:flex;align-items:center;gap:10px">
       <span class="section-count">${filtered.length} shows</span>
       <button class="btn" style="padding:5px 12px;font-size:12px" onclick="toggleSelectMode()">${window._selectMode ? 'Cancel' : 'Select'}</button>
-      ${window._selectMode && window._selectedShows?.size > 0 ? `<button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>` : ''}
+      ${window._selectMode && window._selectedShows?.size > 0 ? `
+        <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('stopped')">Stopped</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('watchlater')">Watch Later</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('watching')">Watching</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('completed')">Completed</button>
+        <button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>
+      ` : ''}
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        ${['all','watching','finished','uptodate'].map(f => `
+        ${['all','watching','uptodate','finished','stopped','watchlater','watchlist'].map(f => `
           <button class="filter-btn${completedFilter === f ? ' active' : ''}" onclick="setCompletedFilter('${f}')">
-            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date' }[f]}
+            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date', stopped:'Stopped', watchlater:'Watch Later', watchlist:'Watchlist' }[f]}
             <span class="filter-count">${byFilter[f].length}</span>
           </button>`).join('')}
       </div>`;
@@ -171,10 +182,17 @@ function renderShelfView(status, title) {
   }
   let html = `<div class="section-header">
     <div class="section-title">${title}</div>
-    <div style="display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span class="section-count">${shows.length} shows</span>
       <button class="btn" style="padding:5px 12px;font-size:12px" onclick="toggleSelectMode()">${window._selectMode ? 'Cancel' : 'Select'}</button>
-      ${window._selectMode && window._selectedShows?.size > 0 ? `<button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>` : ''}
+      ${window._selectMode && window._selectedShows?.size > 0 ? `
+        <button class="btn" style="padding:5px 12px;font-size:12px;border-color:rgba(136,136,136,0.4);color:#888" onclick="moveSelectedShows('stopped')">Stopped</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px;border-color:rgba(78,205,196,0.4);color:#4ecdc4" onclick="moveSelectedShows('watchlater')">Watch Later</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px;border-color:rgba(244,165,52,0.4);color:#f4a534" onclick="moveSelectedShows('watching')">Watching</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px;border-color:rgba(124,106,255,0.4);color:#7c6aff" onclick="moveSelectedShows('completed')">Completed</button>
+        <button class="btn" style="padding:5px 12px;font-size:12px;border-color:rgba(255,107,107,0.4);color:#ff6b6b" onclick="moveSelectedShows('watchlist')">Watchlist</button>
+        <button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>
+      ` : ''}
     </div>
   </div>`;
   html += `<div class="show-grid">`;
@@ -254,8 +272,16 @@ function showCard(show, status) {
   const r          = 14;
   const circ       = 2 * Math.PI * r;
   const offset     = circ - (pct / 100) * circ;
-  const badgeMap   = { watching: 'Watching', completed: 'Done', watchlist: 'Watchlist', uptodate: 'Up to Date' };
-  const ringColor  = status === 'uptodate' ? '#4caf87' : status === 'watching' ? '#f4a534' : '#7c6aff';
+  const badgeMap   = {
+    watching:  'Watching', completed: 'Done',
+    watchlist: 'Watchlist', uptodate: 'Up to Date',
+    watchlater:'Watch Later', stopped: 'Stopped'
+  };
+  const ringColor  = status === 'uptodate'   ? '#4caf87'
+                   : status === 'watching'   ? '#f4a534'
+                   : status === 'watchlater' ? '#4ecdc4'
+                   : status === 'stopped'    ? '#ff6b6b'
+                   : '#7c6aff';
   const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
   const isSelected = window._selectedShows?.has(String(show.id));
   const inSelectMode = !!window._selectMode;
@@ -448,22 +474,27 @@ function _populateModal(show, id) {
 }
 
 function renderModalActions(id) {
-  const d           = state.shows[id] || {};
-  const status      = d.status;
-  const isWatching  = status === 'watching';
-  const isCompleted = status === 'completed';
-  const isWatchlist = status === 'watchlist';
-  const imdbId      = currentShow?._imdb_id;
+  const d             = state.shows[id] || {};
+  const status        = d.status;
+  const isWatching    = status === 'watching';
+  const isCompleted   = status === 'completed';
+  const isWatchlist   = status === 'watchlist';
+  const isWatchLater  = status === 'watchlater';
+  const isStopped     = status === 'stopped';
+  const imdbId        = currentShow?._imdb_id;
   let html = '';
 
   if (!status) {
     html += `<button class="btn primary" onclick="setStatus(${id},'watching')">▶ Start Watching</button>`;
     html += `<button class="btn" onclick="setStatus(${id},'completed')">✓ Mark Completed</button>`;
-    html += `<button class="btn" onclick="setStatus(${id},'watchlist')">◈ Add to Watchlist</button>`;
+    html += `<button class="btn" onclick="setStatus(${id},'watchlist')">＋ Watchlist</button>`;
+    html += `<button class="btn" onclick="setStatus(${id},'watchlater')">⏲ Watch Later</button>`;
   } else {
-    if (!isWatching)  html += `<button class="btn" onclick="setStatus(${id},'watching')">▶ Watching</button>`;
-    if (!isCompleted) html += `<button class="btn" onclick="setStatus(${id},'completed')">✓ Mark Completed</button>`;
-    if (!isWatchlist) html += `<button class="btn" onclick="setStatus(${id},'watchlist')">◈ Watchlist</button>`;
+    if (!isWatching)   html += `<button class="btn" onclick="setStatus(${id},'watching')">▶ Watching</button>`;
+    if (!isCompleted)  html += `<button class="btn" onclick="setStatus(${id},'completed')">✓ Completed</button>`;
+    if (!isWatchlist)  html += `<button class="btn" onclick="setStatus(${id},'watchlist')">＋ Watchlist</button>`;
+    if (!isWatchLater) html += `<button class="btn" onclick="setStatus(${id},'watchlater')">⏲ Watch Later</button>`;
+    if (!isStopped)    html += `<button class="btn" onclick="setStatus(${id},'stopped')">⏸ Stopped</button>`;
     html += `<div style="position:relative">
       <button class="btn" onclick="toggleListDropdown(${id})">+ Add to List</button>
       <div class="dropdown" id="list-dropdown-${id}" style="display:none;top:36px;left:0">

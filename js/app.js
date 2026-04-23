@@ -5,6 +5,7 @@ function navigate(view) {
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
+    watchlater: 'Watch Later', stopped: 'Stopped',
     completed: 'All', uptodate: 'Up to Date', finished: 'Finished',
     activity: 'Activity', profile: 'My Profile'
   };
@@ -248,6 +249,23 @@ function deleteSelectedShows() {
   showToast(`Deleted ${ids.length} show${ids.length > 1 ? 's' : ''}`);
 }
 
+function moveSelectedShows(newStatus) {
+  const ids = [...(window._selectedShows || [])];
+  if (!ids.length) return;
+  const labels = { watching:'Watching', completed:'Completed', watchlist:'Watchlist', stopped:'Stopped', watchlater:'Watch Later' };
+  ids.forEach(id => {
+    if (state.shows[id]) {
+      state.shows[id].status = newStatus;
+      syncSaveShow(id);
+    }
+  });
+  window._selectMode    = false;
+  window._selectedShows = new Set();
+  save();
+  render();
+  showToast(`Moved ${ids.length} show${ids.length > 1 ? 's' : ''} to ${labels[newStatus] || newStatus}`);
+}
+
 // ─── CLEAR LIBRARY ────────────────────────────────────────────────────────────
 function confirmClearLibrary() {
   const el = document.createElement('div');
@@ -323,8 +341,8 @@ async function handleTVTimeImport(event) {
   const statusMap = {
     'up_to_date':     'completed',
     'continuing':     'watching',
-    'stopped':        'watching',
-    'watch_later':    'watchlist',
+    'stopped':        'stopped',
+    'watch_later':    'watchlater',
     'not_started_yet':'watchlist',
   };
 
