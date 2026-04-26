@@ -69,10 +69,12 @@ function countTotalEps(d) {
   return show.number_of_episodes || 0;
 }
 
+// FIX: Only return the next AIRED unwatched episode (skip future/unaired)
 function findNextEpisode(d) {
   const id = d.show?.id;
   if (!id || !state.seasons[id]) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(23, 59, 59, 999);
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sNums = Object.keys(state.seasons[id]).sort((a, b) => +a - +b);
   for (const sn of sNums) {
     const eps = state.seasons[id][sn]?.episodes || [];
@@ -80,11 +82,13 @@ function findNextEpisode(d) {
       const ep = eps[i];
       const key = `${sn}_${ep.episode_number}`;
       if (!d.watched?.[key]) {
-        const label = `S${sn}E${ep.episode_number}`;
         const airDate = ep.air_date ? new Date(ep.air_date) : null;
+        // Skip episodes that haven't aired yet
+        if (!airDate || airDate > today) continue;
+        const label = `S${sn}E${ep.episode_number}`;
         const isPremiere = ep.episode_number === 1;
         const isFinale = i === eps.length - 1;
-        const isNew = airDate && airDate >= new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000) && airDate <= today;
+        const isNew = airDate >= weekAgo;
         let tag = null, tagColor = null;
         if (isPremiere)     { tag = 'Premiere';    tagColor = '#7c6aff'; }
         else if (isFinale)  { tag = 'Finale';      tagColor = '#ff6b6b'; }
@@ -117,7 +121,9 @@ function checkUpToDate(showId) {
   if (airedTotal > 0 && airedWatched >= airedTotal) {
     state.shows[showId].status = 'completed';
     logActivity('done', showId, show.name, show.poster_path, '');
-    save(); render();
+    save();
+    syncSaveShow(showId);
+    render();
     showToast(`${show.name} moved to Up to Date`);
   }
 }

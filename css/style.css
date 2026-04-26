@@ -923,3 +923,21 @@ html, body {
   background: var(--accent);
   border-color: var(--accent);
 }
+
+/* ─── IMAGE LOADING ──────────────────────────────────────────────────────── */
+.show-card-poster {
+  background: linear-gradient(110deg, var(--bg-elevated) 30%, var(--bg-card) 50%, var(--bg-elevated) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.show-card-poster[src]:not([src=""]) {
+  animation: none;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.cw-thumb, .fav-poster, .activity-thumb, .prof2-avatar-img {
+  background: var(--bg-elevated);
+}

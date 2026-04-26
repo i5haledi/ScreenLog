@@ -51,7 +51,7 @@ async function doSearch(q) {
       return;
     }
     box.innerHTML = results.map(s => {
-      const img = s.poster_path ? IMG + s.poster_path : FALLBACK_IMG;
+      const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
       const year = (s.first_air_date || '').slice(0, 4);
       const inLib = !!state.shows[s.id];
       return `<div class="search-result-item" onclick="openShowFromSearch(${JSON.stringify(s).replace(/"/g, '&quot;')})">
@@ -76,7 +76,9 @@ async function doSearch(q) {
 
 function addShowFromSearch(show, status) {
   state.shows[show.id] = { show, status, watched: {} };
-  save(); render();
+  save();
+  syncSaveShow(show.id); // FIX: sync the new show to Firestore
+  render();
   closeSearch();
   openShow(show.id);
 }

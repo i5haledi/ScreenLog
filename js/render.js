@@ -65,7 +65,7 @@ function renderHome() {
       const watchedEps = Object.values(d.watched || {}).filter(Boolean).length;
       const pct       = totalEps > 0 ? Math.round(watchedEps / totalEps * 100) : 0;
       const next      = findNextEpisode(d);
-      const thumb     = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+      const thumb     = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;
       const epLabel   = next ? next.label : 'Up to date';
       const tagHtml   = next?.tag
         ? `<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;background:${next.tagColor}22;color:${next.tagColor};margin-left:6px">${next.tag}</span>`
@@ -83,7 +83,7 @@ function renderHome() {
 
       html += `
         <div class="cw-card" onclick="openShow(${show.id})">
-          <img class="cw-thumb" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
+          <img class="cw-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
           <div class="cw-info">
             <div>
               <div class="cw-title">${escHtml(show.name)}</div>
@@ -150,9 +150,9 @@ function renderShelfView(status, title) {
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        ${['all','watching','uptodate','finished','stopped','watchlater','watchlist'].map(f => `
+        ${['all','watching','uptodate','finished','watchlist'].map(f => `
           <button class="filter-btn${completedFilter === f ? ' active' : ''}" onclick="setCompletedFilter('${f}')">
-            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date', stopped:'Stopped', watchlater:'Watch Later', watchlist:'Watchlist' }[f]}
+            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date', watchlist:'Watchlist' }[f]}
             <span class="filter-count">${byFilter[f].length}</span>
           </button>`).join('')}
       </div>`;
@@ -160,12 +160,22 @@ function renderShelfView(status, title) {
     if (!filtered.length) {
       html += `<div class="empty-state"><div class="big">▶</div><h3>Nothing here</h3><p>No shows match this filter yet</p></div>`;
     } else {
+      const PAGE   = window._showPage || 40;
+      const visible = filtered.slice(0, PAGE);
+      const hasMore = filtered.length > PAGE;
       html += `<div class="show-grid">`;
-      filtered.forEach(d => {
+      visible.forEach(d => {
         const isUpToDate = d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled';
         html += showCard(d.show, isUpToDate ? 'uptodate' : d.status);
       });
       html += `</div>`;
+      if (hasMore) {
+        html += `<div style="text-align:center;margin-top:24px">
+          <button class="btn" style="padding:10px 32px" onclick="window._showPage=${PAGE + 40};renderShelfView('completed','All')">
+            Show More (${filtered.length - PAGE} remaining)
+          </button>
+        </div>`;
+      }
     }
     c.innerHTML = html;
     return;
@@ -196,13 +206,23 @@ function renderShelfView(status, title) {
     </div>
   </div>`;
   html += `<div class="show-grid">`;
-  shows.forEach(d => html += showCard(d.show, status));
+  const PAGE2   = window._showPage || 40;
+  const visible2 = shows.slice(0, PAGE2);
+  visible2.forEach(d => html += showCard(d.show, status));
   html += `</div>`;
+  if (shows.length > PAGE2) {
+    html += `<div style="text-align:center;margin-top:24px">
+      <button class="btn" style="padding:10px 32px" onclick="window._showPage=${PAGE2 + 40};renderShelfView('${status}','${title}')">
+        Show More (${shows.length - PAGE2} remaining)
+      </button>
+    </div>`;
+  }
   c.innerHTML = html;
 }
 
 function setCompletedFilter(f) {
   completedFilter = f;
+  window._showPage = 40;
   renderShelfView('completed', 'All');
 }
 
@@ -282,8 +302,7 @@ function showCard(show, status) {
                    : status === 'watchlater' ? '#4ecdc4'
                    : status === 'stopped'    ? '#ff6b6b'
                    : '#7c6aff';
-  const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
-  const isSelected = window._selectedShows?.has(String(show.id));
+  const img        = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;  const isSelected = window._selectedShows?.has(String(show.id));
   const inSelectMode = !!window._selectMode;
 
   return `
@@ -291,7 +310,7 @@ function showCard(show, status) {
       ${inSelectMode ? `<div class="show-select-check${isSelected ? ' checked' : ''}">
         ${isSelected ? `<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9 10.5,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ''}
       </div>` : ''}
-      <img class="show-card-poster" src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy">
+      <img class="show-card-poster" src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async">
       ${badgeMap[status] ? `<div class="show-card-badge" style="color:${ringColor}">${badgeMap[status]}</div>` : ''}
       <div class="show-card-body">
         <div class="show-card-title">${escHtml(show.name)}</div>
@@ -356,7 +375,7 @@ function renderActivity() {
   Object.entries(groups).forEach(([dayStr, items]) => {
     html += `<div class="activity-day-group"><div class="activity-day-label">${dayLabel(dayStr)}</div>`;
     items.forEach(a => {
-      const thumb   = a.posterId ? `${IMG}${a.posterId}` : FALLBACK_IMG;
+      const thumb   = a.posterId ? `${IMG_SM}${a.posterId}` : FALLBACK_IMG;
       const labelFn = typeLabels[a.type];
       const label   = labelFn ? labelFn(a) : escHtml(a.showName);
       html += `
@@ -366,7 +385,7 @@ function renderActivity() {
             <div class="activity-text">${label}</div>
             <div class="activity-time">${timeStr(a.ts)}</div>
           </div>
-          <img class="activity-thumb" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
+          <img class="activity-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
         </div>`;
     });
     html += `</div>`;
@@ -434,7 +453,7 @@ async function openShow(id) {
 }
 
 function _populateModal(show, id) {
-  const img    = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+  const img    = show.poster_path ? IMG_LG + show.poster_path : FALLBACK_IMG;
   const year   = (show.first_air_date || '').slice(0, 4);
   const eps    = show.number_of_episodes ? ` · ${show.number_of_episodes} eps` : '';
   const seas   = show.number_of_seasons  ? `${show.number_of_seasons} seasons` : '';
@@ -622,10 +641,16 @@ function renderProfile() {
     months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString('en-US',{month:'short'}), eps: 0, mins: 0 });
   }
 
-  let totalEpsWatched = 0, totalMinutes = 0;
+  // FIX: Count total watched episodes directly from state (accurate, not capped like activityLog).
+  // activityLog is used only for time estimates and monthly chart data.
+  let totalEpsWatched = 0;
+  Object.values(state.shows).forEach(d => {
+    totalEpsWatched += Object.values(d.watched || {}).filter(Boolean).length;
+  });
+
+  let totalMinutes = 0;
   (state.activityLog || []).forEach(a => {
     if (a.type !== 'ep') return;
-    totalEpsWatched++;
     const d      = new Date(a.ts);
     const bucket = months.find(m => m.year === d.getFullYear() && m.month === d.getMonth());
     let runtime  = 0;
@@ -695,9 +720,8 @@ function renderProfile() {
     const fd   = fid ? state.shows[fid] : null;
     const show = fd?.show;
     if (show) {
-      const img = show.poster_path ? IMG+show.poster_path : FALLBACK_IMG;
-      return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
-        <img src="${img}" class="fav-poster" onerror="this.src='${FALLBACK_IMG}'">
+      const img = show.poster_path ? IMG+show.poster_path : FALLBACK_IMG;      return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
+        <img src="${img}" class="fav-poster" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'">
         <div class="fav-overlay">
           <div class="fav-title">${escHtml(show.name)}</div>
           <button class="fav-remove-btn" onclick="event.stopPropagation();removeFavorite(${i})">✕</button>

@@ -1,6 +1,7 @@
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 function navigate(view) {
   state.view = view;
+  window._showPage = 40;
   document.querySelectorAll('.nav-item').forEach(el =>
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
@@ -45,15 +46,20 @@ function setStatus(id, status) {
   }
 
   save();
+  syncSaveShow(id); // FIX: sync the changed show
   renderModalActions(id);
   renderEpisodesTab(document.getElementById('m-tab-content'));
   render();
 }
 
+// FIX: removeShow now properly syncs deletion to Firestore
 function removeShow(id) {
   delete state.shows[id];
   state.customLists.forEach(l => { if (l.showIds) l.showIds = l.showIds.filter(s => s !== String(id)); });
-  save(); closeModal(); render();
+  save();
+  syncSaveShow(id); // show is gone from state → _flushPendingShows will delete from Firestore
+  closeModal();
+  render();
 }
 
 // ─── EPISODE ACTIONS ─────────────────────────────────────────────────────────
@@ -71,6 +77,7 @@ function toggleEp(showId, key) {
     checkUpToDate(showId);
   }
   save();
+  syncSaveShow(showId); // FIX: sync the episode change
   renderEpisodesTab(document.getElementById('m-tab-content'));
   renderModalActions(showId);
 }
@@ -83,6 +90,7 @@ function markSeasonWatched(showId, snum, markAll) {
   });
   if (markAll) checkUpToDate(showId);
   save();
+  syncSaveShow(showId); // FIX: sync the bulk episode change
   renderEpisodesTab(document.getElementById('m-tab-content'));
   renderModalActions(showId);
 }
@@ -108,7 +116,9 @@ function confirmMarkEp() {
   const epLabel = `S${snum}E${epnum}${epData?.name ? ' · ' + epData.name : ''}`;
   logActivity('ep', showId, show.name, show.poster_path, epLabel);
   checkUpToDate(showId);
-  save(); render();
+  save();
+  syncSaveShow(showId); // FIX: sync quick-mark change
+  render();
   closeConfirmModal();
   showToast(`Marked ${label} as watched`);
 }
@@ -238,9 +248,7 @@ function deleteSelectedShows() {
   ids.forEach(id => {
     delete state.shows[id];
     state.customLists.forEach(l => { if (l.showIds) l.showIds = l.showIds.filter(s => s !== id); });
-    if (currentUser) {
-      db.collection('users').doc(currentUser.uid).collection('shows').doc(id).delete().catch(()=>{});
-    }
+    syncSaveShow(id); // FIX: queues deletion from Firestore for each removed show
   });
   window._selectMode    = false;
   window._selectedShows = new Set();
@@ -308,20 +316,11 @@ async function executeClearLibrary() {
       await db.collection('users').doc(uid).set({
         customLists: [], activityLog: [], favorites: [], profilePic: state.profilePic || null
       }, { merge: true });
-      // Delete shows subcollection in batches
+      // FIX: use chunked batch deletes (handles >500 docs safely)
       const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
-      if (!showsSnap.empty) {
-        const batch = db.batch();
-        showsSnap.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-      }
-      // Delete seasons subcollection
+      await _batchDeleteSnap(showsSnap);
       const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();
-      if (!seasonsSnap.empty) {
-        const batch2 = db.batch();
-        seasonsSnap.forEach(doc => batch2.delete(doc.ref));
-        await batch2.commit();
-      }
+      await _batchDeleteSnap(seasonsSnap);
     } catch(e) { console.warn('Clear failed:', e); }
   }
   render();
@@ -329,6 +328,28 @@ async function executeClearLibrary() {
 }
 
 // ─── TV TIME IMPORT ───────────────────────────────────────────────────────────
+
+// FIX: Proper CSV parser that handles quoted fields with commas
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+      else inQuotes = !inQuotes;
+    } else if (c === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += c;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 async function handleTVTimeImport(event) {
   const file = event.target.files[0];
   event.target.value = '';
@@ -346,13 +367,13 @@ async function handleTVTimeImport(event) {
     'not_started_yet':'watchlist',
   };
 
-  // Parse CSV rows
+  // FIX: Use proper CSV parser for quoted fields
   const rows = [];
   for (const line of lines) {
-    const parts = line.split(',');
+    const parts = parseCSVLine(line);
     if (parts.length < 6) continue;
     const tvdb_id = parts[1]?.trim();
-    const title   = parts[3]?.trim().replace(/^"|"$/g, '');
+    const title   = parts[3]?.trim();
     const status  = parts[4]?.trim();
     const mapped  = statusMap[status];
     if (!tvdb_id || !mapped || !title) continue;
@@ -361,35 +382,27 @@ async function handleTVTimeImport(event) {
 
   if (!rows.length) { showToast('No valid shows found in CSV'); return; }
 
-  // Show progress modal
   showImportModal(rows.length);
-
   let imported = 0, failed = 0, skipped = 0;
 
-  // Process in batches of 5 with delay to avoid rate limiting
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     updateImportProgress(i + 1, rows.length, row.title);
 
-    // Skip if already in library
     const alreadyIn = Object.values(state.shows).find(d => d.show?.name?.toLowerCase() === row.title.toLowerCase());
     if (alreadyIn) { skipped++; continue; }
 
     try {
       let show = null;
-
-      // Find on TMDB by TVDB ID first
       const r    = await tmdbFetch(`${TMDB}/find/${row.tvdb_id}?external_source=tvdb_id`);
       const data = await r.json();
       const hit  = (data.tv_results || [])[0];
 
       if (hit) {
-        // Fetch full details to get status, number_of_episodes, genres etc.
         const r2   = await tmdbFetch(`${TMDB}/tv/${hit.id}`);
         const full = await r2.json();
         show = full.id ? full : hit;
       } else {
-        // Fallback: search by title
         const r3  = await tmdbFetch(`${TMDB}/search/tv?query=${encodeURIComponent(row.title)}&page=1`);
         const d3  = await r3.json();
         const res = (d3.results || [])[0];
@@ -408,12 +421,10 @@ async function handleTVTimeImport(event) {
       }
     } catch(e) { failed++; }
 
-    // Throttle: delay every 3 requests to stay within TMDB rate limits
     if ((i + 1) % 3 === 0) await new Promise(r => setTimeout(r, 250));
   }
 
   _localSave();
-  // Save all shows to Firestore in batches (avoids 1MB doc limit)
   updateImportProgress(rows.length, rows.length, 'Saving to cloud...');
   await syncSaveAllShows();
   await _firestoreSaveMain();
@@ -424,7 +435,6 @@ async function handleTVTimeImport(event) {
 }
 
 function showImportModal(total) {
-  // Create modal dynamically
   const existing = document.getElementById('import-modal');
   if (existing) existing.remove();
   const el = document.createElement('div');
@@ -472,7 +482,6 @@ function handlePicUpload(event) {
   if (file.size > 3 * 1024 * 1024) { showToast('Image must be under 3MB'); return; }
   const reader = new FileReader();
   reader.onload = async e => {
-    // Resize to max 300x300 before saving
     const img = new Image();
     img.onload = async () => {
       const canvas = document.createElement('canvas');
@@ -486,13 +495,14 @@ function handlePicUpload(event) {
       const base64 = canvas.toDataURL('image/jpeg', 0.8);
       state.profilePic = base64;
       save();
-      // Save to Firestore
       if (currentUser) {
         try {
           await db.collection('users').doc(currentUser.uid).set({ profilePic: base64 }, { merge: true });
         } catch(e) {}
       }
-      setUserDisplay((currentUsername || currentUser?.email || 'U')[0], currentUsername || currentUser?.email || '');
+      // FIX: safe fallback if both username and email are null
+      const label = currentUsername || currentUser?.email || 'U';
+      setUserDisplay(label[0].toUpperCase(), label);
       renderProfile();
       showToast('Profile photo updated');
     };

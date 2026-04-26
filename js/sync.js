@@ -25,6 +25,10 @@ async function syncLoad() {
       if (data.username)    currentUsername   = data.username;
     }
 
+    // FIX: Clear before loading from Firestore (authoritative source)
+    state.shows   = {};
+    state.seasons = {};
+
     // Load shows subcollection
     const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
     showsSnap.forEach(doc => { state.shows[doc.id] = doc.data(); });
@@ -41,6 +45,8 @@ async function syncLoad() {
 }
 
 // ─── SAVE (debounced) ─────────────────────────────────────────────────────────
+// Only saves the main user doc (customLists, activityLog, favorites, profilePic).
+// Individual show changes must call syncSaveShow(id) at the call site.
 function syncSave() {
   _localSave();
   clearTimeout(_syncTimer);
@@ -77,6 +83,7 @@ async function _flushPendingShows() {
     if (d) {
       try { await ref.doc(String(id)).set(d); } catch(e) {}
     } else {
+      // FIX: deleted shows are cleaned up from Firestore
       try { await ref.doc(String(id)).delete(); } catch(e) {}
     }
   }));
@@ -92,18 +99,29 @@ async function syncSaveSeasons(showId) {
 }
 
 // ─── IMPORT BATCH SAVE ────────────────────────────────────────────────────────
-// Called after bulk import — saves all shows immediately in Firestore batches
 async function syncSaveAllShows() {
   if (!currentUser) return;
   const ref    = db.collection('users').doc(currentUser.uid).collection('shows');
   const ids    = Object.keys(state.shows);
-  const CHUNK  = 400; // Firestore batch limit is 500 ops
+  const CHUNK  = 400;
   for (let i = 0; i < ids.length; i += CHUNK) {
     const batch = db.batch();
     ids.slice(i, i + CHUNK).forEach(id => {
       batch.set(ref.doc(String(id)), state.shows[id]);
     });
     try { await batch.commit(); } catch(e) { console.warn('Batch save failed:', e); }
+  }
+}
+
+// ─── BATCH DELETE HELPER (handles >500 docs safely) ──────────────────────────
+async function _batchDeleteSnap(snap) {
+  const refs = [];
+  snap.forEach(doc => refs.push(doc.ref));
+  const CHUNK = 400;
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const batch = db.batch();
+    refs.slice(i, i + CHUNK).forEach(ref => batch.delete(ref));
+    try { await batch.commit(); } catch(e) { console.warn('Batch delete failed:', e); }
   }
 }
 
@@ -126,13 +144,11 @@ function _localLoad() {
 }
 
 // ─── OVERRIDES ────────────────────────────────────────────────────────────────
+// FIX: save() only persists local + main user doc.
+// Show-level changes must be synced via syncSaveShow(id) at the call site.
 function save() {
   _localSave();
   syncSave();
-  // Queue all modified shows
-  Object.keys(state.shows).forEach(id => _pendingShows.add(id));
-  clearTimeout(_showsTimer);
-  _showsTimer = setTimeout(_flushPendingShows, 1500);
 }
 
 function load() { _localLoad(); }

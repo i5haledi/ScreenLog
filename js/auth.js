@@ -16,10 +16,10 @@ auth.onAuthStateChanged(async user => {
   if (cachedUname) currentUsername = cachedUname;
 
   state.view = 'home';
-  setUserDisplay(
-    (currentUsername || user.email)[0].toUpperCase(),
-    currentUsername || user.email
-  );
+
+  // FIX: null-safe label — handles phone auth or edge cases with no email
+  const initialLabel = currentUsername || user.email || 'User';
+  setUserDisplay(initialLabel[0].toUpperCase(), initialLabel);
   render();
 
   // ── 2. Fetch username & Firestore data in background ─────────────────────
@@ -40,21 +40,17 @@ auth.onAuthStateChanged(async user => {
       localStorage.setItem('sl_username_' + uid, userData.username);
     }
 
-    setUserDisplay(
-      (currentUsername || user.email)[0].toUpperCase(),
-      currentUsername || user.email
-    );
+    const displayLabel = currentUsername || user.email || 'User';
+    setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
 
     // Only show modal if NEITHER cache NOR Firestore has a username
     if (!currentUsername) {
-      // Double-check by searching usernames collection for this uid
       try {
         const usernamesSnap = await db.collection('usernames').where('uid', '==', uid).limit(1).get();
         if (!usernamesSnap.empty) {
           const foundName = usernamesSnap.docs[0].id;
           currentUsername = foundName;
           localStorage.setItem('sl_username_' + uid, foundName);
-          // Also repair the user doc
           await db.collection('users').doc(uid).set({ username: foundName }, { merge: true });
           setUserDisplay(foundName[0].toUpperCase(), foundName);
         } else {
@@ -64,6 +60,12 @@ auth.onAuthStateChanged(async user => {
         showUsernameModal();
       }
     }
+
+    // FIX: Clear local state before loading from Firestore.
+    // Prevents deleted shows on other devices from persisting,
+    // and prevents cross-account data leaks.
+    state.shows   = {};
+    state.seasons = {};
 
     // Load shows subcollection
     const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
@@ -93,10 +95,10 @@ function setUserDisplay(initial, label) {
       avatarEl.textContent = '';
     } else {
       avatarEl.style.backgroundImage = '';
-      avatarEl.textContent = initial.toUpperCase();
+      avatarEl.textContent = (initial || 'U').toUpperCase();
     }
   }
-  if (emailEl) emailEl.textContent = label;
+  if (emailEl) emailEl.textContent = label || '';
 }
 
 // ─── USERNAME MODAL ───────────────────────────────────────────────────────────
@@ -124,36 +126,43 @@ async function submitUsername() {
   btn.disabled    = true;
 
   try {
-    // Check uniqueness
-    const snap = await db.collection('usernames').doc(name).get();
-    if (snap.exists) {
-      error.textContent    = 'This username is taken. Try another.';
-      btn.textContent      = 'Save Username';
-      btn.disabled         = false;
-      return;
-    }
+    const uid          = currentUser.uid;
+    const userRef      = db.collection('users').doc(uid);
+    const usernameRef  = db.collection('usernames').doc(name);
 
-    const uid = currentUser.uid;
-    // Claim username
-    await db.collection('usernames').doc(name).set({ uid });
-    // Save to user doc
-    await db.collection('users').doc(uid).set({ username: name }, { merge: true });
+    // FIX: Use a Firestore transaction to atomically claim the username.
+    // Prevents two concurrent signups from claiming the same name.
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(usernameRef);
+      if (snap.exists) throw new Error('taken');
+      tx.set(usernameRef, { uid });
+      tx.set(userRef, { username: name }, { merge: true });
+    });
 
     currentUsername = name;
     localStorage.setItem('sl_username_' + uid, name);
-    setUserDisplay(name[0].toUpperCase(), name);
+    const displayLabel = name;
+    setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
     hideUsernameModal();
   } catch(e) {
-    error.textContent = 'Something went wrong. Try again.';
-    btn.textContent   = 'Save Username';
-    btn.disabled      = false;
+    if (e.message === 'taken') {
+      error.textContent = 'This username is taken. Try another.';
+    } else {
+      error.textContent = 'Something went wrong. Try again.';
+    }
+    btn.textContent = 'Save Username';
+    btn.disabled    = false;
   }
 }
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 async function logout() {
+  // FIX: capture uid before signing out, then clear all cached data
+  const uid = currentUser?.uid;
   await auth.signOut();
   localStorage.removeItem('sl_state');
   localStorage.removeItem('sl_seasons');
+  // FIX: also clear the cached username key to prevent data leaks
+  if (uid) localStorage.removeItem('sl_username_' + uid);
   window.location.href = 'login.html';
 }
