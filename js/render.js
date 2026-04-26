@@ -894,13 +894,13 @@ function renderProfile() {
 }
 
 // ─── PEOPLE ───────────────────────────────────────────────────────────────────
-function renderPeople() {
+async function renderPeople() {
   if (!window._upCache) window._upCache = {};
   const c = document.getElementById('content');
   const followingList = Object.entries(_following);
 
   let html = `
-    <div class="section-header">
+    <div class="section-header" style="margin-bottom:16px">
       <div class="section-title">People</div>
     </div>
     <div class="people-search-wrap">
@@ -912,7 +912,7 @@ function renderPeople() {
     <div id="people-results"></div>`;
 
   if (followingList.length > 0) {
-    html += `<div class="section-header" style="margin-top:28px">
+    html += `<div class="section-header" style="margin-top:28px;margin-bottom:12px">
       <div class="section-title" style="font-size:15px">Following</div>
       <span class="section-count">${followingList.length}</span>
     </div>
@@ -921,16 +921,27 @@ function renderPeople() {
       html += renderUserCard({ uid, username: info.username, profilePic: info.profilePic });
     });
     html += `</div>`;
-  } else {
-    html += `<div class="empty-state" style="margin-top:40px">
-      <div class="big">◉</div>
-      <h3>Find friends</h3>
-      <p>Search for other Screenlog users by username above</p>
-    </div>`;
   }
+
+  html += `
+    <div class="section-header" style="margin-top:28px;margin-bottom:12px">
+      <div class="section-title" style="font-size:15px">All Users</div>
+    </div>
+    <div id="people-discover">
+      <div style="text-align:center;padding:30px"><div class="spinner"></div></div>
+    </div>`;
 
   c.innerHTML = html;
   setTimeout(() => document.getElementById('people-search-input')?.focus(), 50);
+
+  const users = await loadDiscoverUsers();
+  const el = document.getElementById('people-discover');
+  if (!el) return;
+  if (!users.length) {
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:12px 0">No other users yet</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="people-grid">${users.map(u => renderUserCard(u)).join('')}</div>`;
 }
 
 function renderUserCard(user) {

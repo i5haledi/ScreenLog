@@ -553,16 +553,25 @@ function viewUser(uid) {
 let _peopleSearchTimer = null;
 function onPeopleSearch(query) {
   clearTimeout(_peopleSearchTimer);
-  const el = document.getElementById('people-results');
-  if (!el) return;
-  if (!query || query.length < 2) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div style="text-align:center;padding:20px"><div class="spinner"></div></div>`;
+  const resultsEl  = document.getElementById('people-results');
+  const discoverEl = document.getElementById('people-discover');
+  if (!resultsEl) return;
+
+  if (!query || query.length < 2) {
+    resultsEl.innerHTML = '';
+    if (discoverEl) discoverEl.style.display = '';
+    return;
+  }
+
+  if (discoverEl) discoverEl.style.display = 'none';
+  resultsEl.innerHTML = `<div style="text-align:center;padding:20px"><div class="spinner"></div></div>`;
+
   _peopleSearchTimer = setTimeout(async () => {
     const results = await searchUsers(query);
     const el2 = document.getElementById('people-results');
     if (!el2) return;
     if (!results.length) {
-      el2.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:16px 0">No users found for "${escHtml(query)}"</div>`;
+      el2.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:16px 0">No users found for "<strong>${escHtml(query)}</strong>"</div>`;
       return;
     }
     el2.innerHTML = `<div class="people-grid">${results.map(r => renderUserCard(r)).join('')}</div>`;

@@ -136,3 +136,21 @@ async function loadUserProfile(uid) {
     return { uid, ...snap.data() };
   } catch(e) { return null; }
 }
+
+// ─── DISCOVER USERS ───────────────────────────────────────────────────────────
+async function loadDiscoverUsers(limit = 30) {
+  try {
+    const snap = await db.collection('publicProfiles')
+      .orderBy('updatedAt', 'desc')
+      .limit(limit)
+      .get();
+    const results = [];
+    snap.forEach(doc => {
+      if (doc.id !== currentUser?.uid) {
+        const d = doc.data();
+        results.push({ uid: doc.id, username: d.username || '', profilePic: d.profilePic || null, stats: d.stats || {} });
+      }
+    });
+    return results;
+  } catch(e) { console.warn('Load discover failed:', e); return []; }
+}
