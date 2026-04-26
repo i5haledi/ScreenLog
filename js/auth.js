@@ -146,6 +146,7 @@ async function submitUsername() {
     const displayLabel = name;
     setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
     hideUsernameModal();
+    syncPublicProfile();
   } catch(e) {
     if (e.message === 'taken') {
       error.textContent = 'This username is taken. Try another.';
@@ -209,6 +210,7 @@ async function submitChangeUsername() {
     setUserDisplay(name[0].toUpperCase(), name);
     hideChangeUsernameModal();
     showToast('Username updated!');
+    syncPublicProfile();
     if (state.view === 'profile') render();
   } catch(e) {
     if (e.message === 'taken') {
