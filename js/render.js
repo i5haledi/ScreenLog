@@ -757,7 +757,13 @@ function renderProfile() {
 
       <!-- Info -->
       <div class="prof2-info">
-        <div class="prof2-username">@${escHtml(uname)}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="prof2-username">@${escHtml(uname)}</div>
+          <button onclick="showChangeUsernameModal()" title="Change username" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.55);font-size:12px;transition:background 0.15s" onmouseenter="this.style.background='rgba(255,255,255,0.14)'" onmouseleave="this.style.background='rgba(255,255,255,0.08)'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Edit
+          </button>
+        </div>
         <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
         ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">

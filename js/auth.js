@@ -155,6 +155,70 @@ async function submitUsername() {
   }
 }
 
+// ─── CHANGE USERNAME ─────────────────────────────────────────────────────────
+function showChangeUsernameModal() {
+  const input = document.getElementById('change-username-input');
+  const error = document.getElementById('change-username-error');
+  const btn   = document.getElementById('change-username-btn');
+  if (input) input.value = '';
+  if (error) error.textContent = '';
+  if (btn)   { btn.textContent = 'Save Username'; btn.disabled = false; }
+  document.getElementById('change-username-modal').style.display = 'flex';
+  setTimeout(() => input?.focus(), 50);
+}
+
+function hideChangeUsernameModal() {
+  document.getElementById('change-username-modal').style.display = 'none';
+}
+
+async function submitChangeUsername() {
+  const input = document.getElementById('change-username-input');
+  const error = document.getElementById('change-username-error');
+  const btn   = document.getElementById('change-username-btn');
+  const raw   = input.value.trim();
+  const name  = raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+  error.textContent = '';
+  if (!name || name.length < 3) { error.textContent = 'Username must be at least 3 characters.'; return; }
+  if (name.length > 20)         { error.textContent = 'Username must be 20 characters or less.'; return; }
+  if (raw !== name)             { error.textContent = 'Only letters, numbers and underscores allowed.'; return; }
+  if (name === currentUsername) { error.textContent = 'This is already your username.'; return; }
+
+  btn.textContent = 'Checking…';
+  btn.disabled    = true;
+
+  try {
+    const uid        = currentUser.uid;
+    const oldName    = currentUsername;
+    const userRef    = db.collection('users').doc(uid);
+    const newNameRef = db.collection('usernames').doc(name);
+    const oldNameRef = oldName ? db.collection('usernames').doc(oldName) : null;
+
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(newNameRef);
+      if (snap.exists) throw new Error('taken');
+      if (oldNameRef) tx.delete(oldNameRef);
+      tx.set(newNameRef, { uid });
+      tx.set(userRef, { username: name }, { merge: true });
+    });
+
+    currentUsername = name;
+    localStorage.setItem('sl_username_' + uid, name);
+    setUserDisplay(name[0].toUpperCase(), name);
+    hideChangeUsernameModal();
+    showToast('Username updated!');
+    if (state.view === 'profile') render();
+  } catch(e) {
+    if (e.message === 'taken') {
+      error.textContent = 'This username is taken. Try another.';
+    } else {
+      error.textContent = 'Something went wrong. Try again.';
+    }
+    btn.textContent = 'Save Username';
+    btn.disabled    = false;
+  }
+}
+
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 async function logout() {
   // FIX: capture uid before signing out, then clear all cached data
