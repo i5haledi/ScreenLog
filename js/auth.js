@@ -78,6 +78,8 @@ auth.onAuthStateChanged(async user => {
     _localSave();
     render();
     setTimeout(() => { runUpToDateCheck(); render(); }, 300);
+    syncPublicProfile();
+    loadFollowing();
 
   } catch(e) {
     console.warn('Background sync failed:', e);

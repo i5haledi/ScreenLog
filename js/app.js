@@ -8,7 +8,7 @@ function navigate(view) {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
     watchlater: 'Watch Later', stopped: 'Stopped',
     completed: 'All', uptodate: 'Up to Date', finished: 'Finished',
-    activity: 'Activity', profile: 'My Profile'
+    activity: 'Activity', profile: 'My Profile', people: 'People'
   };
   document.getElementById('view-title').textContent = titles[view] || view;
   closeSidebar();
@@ -537,6 +537,36 @@ function removeFavorite(slot) {
   state.favorites[slot] = null;
   save();
   renderProfile();
+}
+
+// ─── PEOPLE / SOCIAL ─────────────────────────────────────────────────────────
+function viewUser(uid) {
+  state.view = 'user:' + uid;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelector('.nav-item[data-view="people"]')?.classList.add('active');
+  const cached = window._upCache?.[uid];
+  document.getElementById('view-title').textContent = cached?.username ? '@' + cached.username : 'Profile';
+  closeSidebar();
+  render();
+}
+
+let _peopleSearchTimer = null;
+function onPeopleSearch(query) {
+  clearTimeout(_peopleSearchTimer);
+  const el = document.getElementById('people-results');
+  if (!el) return;
+  if (!query || query.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="text-align:center;padding:20px"><div class="spinner"></div></div>`;
+  _peopleSearchTimer = setTimeout(async () => {
+    const results = await searchUsers(query);
+    const el2 = document.getElementById('people-results');
+    if (!el2) return;
+    if (!results.length) {
+      el2.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:16px 0">No users found for "${escHtml(query)}"</div>`;
+      return;
+    }
+    el2.innerHTML = `<div class="people-grid">${results.map(r => renderUserCard(r)).join('')}</div>`;
+  }, 400);
 }
 
 // ─── MOBILE SIDEBAR ───────────────────────────────────────────────────────────

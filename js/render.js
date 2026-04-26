@@ -13,6 +13,8 @@ function render() {
   else if (v === 'finished') renderFinished();
   else if (v === 'activity') renderActivity();
   else if (v === 'profile')  renderProfile();
+  else if (v === 'people')   renderPeople();
+  else if (v.startsWith('user:')) renderUserProfileView(v.split(':').slice(1).join(':'));
   else if (v.startsWith('list:')) renderCustomList(v.split(':')[1]);
   renderSidebarLists();
 }
@@ -889,4 +891,161 @@ function renderProfile() {
       </div>
     </div>
   </div>`;
+}
+
+// ─── PEOPLE ───────────────────────────────────────────────────────────────────
+function renderPeople() {
+  if (!window._upCache) window._upCache = {};
+  const c = document.getElementById('content');
+  const followingList = Object.entries(_following);
+
+  let html = `
+    <div class="section-header">
+      <div class="section-title">People</div>
+    </div>
+    <div class="people-search-wrap">
+      <input type="text" class="input-field" id="people-search-input"
+        placeholder="Search by username…"
+        oninput="onPeopleSearch(this.value)"
+        autocomplete="off">
+    </div>
+    <div id="people-results"></div>`;
+
+  if (followingList.length > 0) {
+    html += `<div class="section-header" style="margin-top:28px">
+      <div class="section-title" style="font-size:15px">Following</div>
+      <span class="section-count">${followingList.length}</span>
+    </div>
+    <div class="people-grid">`;
+    followingList.forEach(([uid, info]) => {
+      html += renderUserCard({ uid, username: info.username, profilePic: info.profilePic });
+    });
+    html += `</div>`;
+  } else {
+    html += `<div class="empty-state" style="margin-top:40px">
+      <div class="big">◉</div>
+      <h3>Find friends</h3>
+      <p>Search for other Screenlog users by username above</p>
+    </div>`;
+  }
+
+  c.innerHTML = html;
+  setTimeout(() => document.getElementById('people-search-input')?.focus(), 50);
+}
+
+function renderUserCard(user) {
+  if (!window._upCache) window._upCache = {};
+  window._upCache[user.uid] = Object.assign(window._upCache[user.uid] || {}, user);
+  const pic      = user.profilePic;
+  const initial  = (user.username || '?')[0].toUpperCase();
+  const stats    = user.stats || {};
+  const following = isFollowing(user.uid);
+  return `
+    <div class="people-card" onclick="viewUser('${user.uid}')">
+      <div class="people-avatar">
+        ${pic ? `<img src="${pic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span>${initial}</span>`}
+      </div>
+      <div class="people-info">
+        <div class="people-username">@${escHtml(user.username || '')}</div>
+        ${stats.totalShows ? `<div class="people-stats">${stats.totalShows} shows · ${stats.totalEps || 0} eps</div>` : ''}
+      </div>
+      <button class="people-follow-btn${following ? ' following' : ''}" data-uid="${user.uid}"
+        onclick="event.stopPropagation();toggleFollow('${user.uid}')">
+        ${following ? '✓ Following' : '+ Follow'}
+      </button>
+    </div>`;
+}
+
+async function renderUserProfileView(uid) {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div style="text-align:center;padding:80px"><div class="spinner"></div></div>`;
+
+  if (!window._upCache) window._upCache = {};
+  let profile = window._upCache[uid];
+  if (!profile || !profile.shows) {
+    profile = await loadUserProfile(uid);
+    if (profile) window._upCache[uid] = profile;
+  }
+
+  if (!profile) {
+    c.innerHTML = `<div class="empty-state"><div class="big">◉</div><h3>Profile not found</h3><p>This user hasn't set up their public profile yet.</p></div>`;
+    return;
+  }
+
+  const following = isFollowing(uid);
+  const pic       = profile.profilePic;
+  const uname     = profile.username || uid;
+  const initial   = uname[0].toUpperCase();
+  const stats     = profile.stats || {};
+  const shows     = profile.shows || [];
+  const watching  = shows.filter(s => s.status === 'watching');
+  const completed = shows.filter(s => s.status === 'completed');
+  const activity  = profile.activityLog || [];
+
+  const iconMap = { ep:'▶', done:'✓', add:'＋', list:'◈', wl:'◈', remove:'✕' };
+  const typeLabels = {
+    ep:     a => `Watched ${escHtml(a.detail || '')} · <strong>${escHtml(a.showName || '')}</strong>`,
+    done:   a => `Marked <strong>${escHtml(a.showName || '')}</strong> as Completed`,
+    add:    a => `Started watching <strong>${escHtml(a.showName || '')}</strong>`,
+    wl:     a => `Added <strong>${escHtml(a.showName || '')}</strong> to Watchlist`,
+    list:   a => `Added <strong>${escHtml(a.showName || '')}</strong> to list ${escHtml(a.detail || '')}`,
+    remove: a => `Removed <strong>${escHtml(a.showName || '')}</strong>`,
+  };
+  const dateStr = ts => new Date(ts).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+
+  const showMini = s => {
+    const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    return `<div class="up-show-card" title="${escHtml(s.name)}">
+      <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async">
+      <div class="up-show-name">${escHtml(s.name)}</div>
+    </div>`;
+  };
+
+  c.innerHTML = `
+    <div class="up-hero">
+      <div class="up-hero-inner">
+        <div class="up-avatar">
+          ${pic ? `<img src="${pic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span>${initial}</span>`}
+        </div>
+        <div class="up-info">
+          <div class="up-username">@${escHtml(uname)}</div>
+          <div class="up-stats-row">
+            <span>${stats.totalShows || 0} shows</span>
+            <span class="up-dot">·</span>
+            <span>${stats.totalEps || 0} episodes</span>
+            <span class="up-dot">·</span>
+            <span>${stats.watching || 0} watching</span>
+          </div>
+        </div>
+        <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
+          onclick="toggleFollow('${uid}')">
+          ${following ? '✓ Following' : '+ Follow'}
+        </button>
+      </div>
+    </div>
+
+    <div class="up-body">
+      <div class="up-section">
+        <div class="prof2-card-label" style="margin-bottom:14px">Recent Activity</div>
+        ${activity.length ? activity.slice(0, 20).map(a => {
+          const fn  = typeLabels[a.type];
+          const lbl = fn ? fn(a) : escHtml(a.showName || '');
+          return `<div class="up-activity-item">
+            <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+            <div class="up-activity-text">${lbl}</div>
+            <div class="up-activity-time">${dateStr(a.ts)}</div>
+          </div>`;
+        }).join('') : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No activity yet</div>`}
+      </div>
+
+      <div class="up-section">
+        <div class="prof2-card-label" style="margin-bottom:14px">Currently Watching (${watching.length})</div>
+        ${watching.length
+          ? `<div class="up-shows-grid">${watching.map(showMini).join('')}</div>`
+          : `<div style="color:var(--text-muted);font-size:13px">Nothing watching right now</div>`}
+        ${completed.length ? `
+          <div class="prof2-card-label" style="margin-top:20px;margin-bottom:14px">Completed (${completed.length})</div>
+          <div class="up-shows-grid">${completed.slice(0, 12).map(showMini).join('')}</div>` : ''}
+      </div>
+    </div>`;
 }

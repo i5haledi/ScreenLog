@@ -941,3 +941,138 @@ html, body {
 .cw-thumb, .fav-poster, .activity-thumb, .prof2-avatar-img {
   background: var(--bg-elevated);
 }
+
+/* ─── PEOPLE / SOCIAL ────────────────────────────────────────────────────── */
+.people-search-wrap {
+  max-width: 440px;
+  margin-bottom: 24px;
+}
+.people-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+}
+.people-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.people-card:hover { border-color: var(--border-hover); background: var(--bg-elevated); }
+.people-avatar {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px; font-weight: 600; color: var(--accent);
+  overflow: hidden;
+}
+.people-info    { flex: 1; min-width: 0; }
+.people-username { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.people-stats    { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.people-follow-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  font-family: 'Thmanyah Sans', sans-serif;
+  transition: all 0.15s;
+}
+.people-follow-btn:hover { background: var(--accent); color: white; }
+.people-follow-btn.following {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+.people-follow-btn.following:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255,91,91,0.08);
+}
+
+/* ─── USER PROFILE VIEW ──────────────────────────────────────────────────── */
+.up-hero {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  margin: -24px -24px 24px;
+  padding: 0 24px;
+}
+.up-hero-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 28px 0;
+  max-width: 800px;
+}
+.up-avatar {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 700; color: var(--accent);
+  flex-shrink: 0; overflow: hidden;
+}
+.up-info    { flex: 1; min-width: 0; }
+.up-username { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.up-stats-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-secondary); margin-top: 4px;
+}
+.up-dot { color: var(--text-muted); }
+
+.up-body {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 20px;
+  max-width: 900px;
+}
+.up-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.up-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.up-activity-item:last-child { border-bottom: none; }
+.up-activity-text { flex: 1; color: var(--text-secondary); line-height: 1.4; }
+.up-activity-text strong { color: var(--text-primary); }
+.up-activity-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.up-shows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+.up-show-card img {
+  width: 100%; aspect-ratio: 2/3; object-fit: cover;
+  border-radius: 8px; display: block;
+  border: 1px solid var(--border);
+}
+.up-show-name {
+  font-size: 10px; color: var(--text-muted);
+  margin-top: 4px; text-align: center;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+@media (max-width: 700px) {
+  .up-body { grid-template-columns: 1fr; }
+  .up-hero { margin: -16px -16px 16px; padding: 0 16px; }
+}
