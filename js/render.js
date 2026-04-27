@@ -6,11 +6,11 @@ function render() {
   if      (v === 'home')     renderHome();
   else if (v === 'watching') renderShelfView('watching', 'Currently Watching');
   else if (v === 'watchlist') renderShelfView('watchlist', 'Watchlist');
-  else if (v === 'watchlater') renderShelfView('watchlater', 'Watch Later');
-  else if (v === 'stopped')  renderShelfView('stopped', 'Stopped');
-  else if (v === 'completed') renderShelfView('completed', 'All');
-  else if (v === 'uptodate') renderUpToDate();
-  else if (v === 'finished') renderFinished();
+  else if (v === 'watchlater') { completedFilter = 'watchlater'; renderShelfView('completed', 'All'); }
+  else if (v === 'stopped')    { completedFilter = 'stopped';    renderShelfView('completed', 'All'); }
+  else if (v === 'completed')  renderShelfView('completed', 'All');
+  else if (v === 'uptodate')   { completedFilter = 'uptodate';   renderShelfView('completed', 'All'); }
+  else if (v === 'finished')   { completedFilter = 'finished';   renderShelfView('completed', 'All'); }
   else if (v === 'activity') renderActivity();
   else if (v === 'profile')  renderProfile();
   else if (v === 'people')   renderPeople();
@@ -129,11 +129,11 @@ function renderShelfView(status, title) {
     const byFilter = {
       all:        allShows,
       watching:   allShows.filter(d => d.status === 'watching'),
-      finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
-      uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
-      stopped:    allShows.filter(d => d.status === 'stopped'),
-      watchlater: allShows.filter(d => d.status === 'watchlater'),
       watchlist:  allShows.filter(d => d.status === 'watchlist'),
+      watchlater: allShows.filter(d => d.status === 'watchlater'),
+      stopped:    allShows.filter(d => d.status === 'stopped'),
+      uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
+      finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
     };
     const filtered = byFilter[completedFilter] || allShows;
 
@@ -152,9 +152,9 @@ function renderShelfView(status, title) {
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        ${['all','watching','uptodate','finished','watchlist'].map(f => `
+        ${['all','watching','watchlist','watchlater','stopped','uptodate','finished'].map(f => `
           <button class="filter-btn${completedFilter === f ? ' active' : ''}" onclick="setCompletedFilter('${f}')">
-            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date', watchlist:'Watchlist' }[f]}
+            ${{ all:'All', watching:'Watching', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped', uptodate:'Up to Date', finished:'Finished' }[f]}
             <span class="filter-count">${byFilter[f].length}</span>
           </button>`).join('')}
       </div>`;
@@ -983,15 +983,17 @@ async function renderUserProfileView(uid) {
     return;
   }
 
+  if (!window._upFilter) window._upFilter = {};
+  if (!window._upFilter[uid]) window._upFilter[uid] = 'all';
+
   const following = isFollowing(uid);
   const pic       = profile.profilePic;
   const uname     = profile.username || uid;
   const initial   = uname[0].toUpperCase();
   const stats     = profile.stats || {};
   const shows     = profile.shows || [];
-  const watching  = shows.filter(s => s.status === 'watching');
-  const completed = shows.filter(s => s.status === 'completed');
   const activity  = profile.activityLog || [];
+  const favorites = profile.favorites || [];
 
   const iconMap = { ep:'▶', done:'✓', add:'＋', list:'◈', wl:'◈', remove:'✕' };
   const typeLabels = {
@@ -1006,37 +1008,92 @@ async function renderUserProfileView(uid) {
 
   const showMini = s => {
     const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    const badgeColor = { watching:'#f4a534', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[s.status] || '#888';
+    const badgeLabel = { watching:'Watching', completed:'Done', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[s.status] || '';
     return `<div class="up-show-card" title="${escHtml(s.name)}">
-      <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async">
+      <div style="position:relative">
+        <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
+        ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
+      </div>
       <div class="up-show-name">${escHtml(s.name)}</div>
     </div>`;
   };
 
+  const favsHtml = [0,1,2,3].map(i => {
+    const fid  = favorites[i];
+    const show = fid ? shows.find(s => String(s.id) === String(fid)) : null;
+    if (show) {
+      const img = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+      return `<div class="fav-card fav-filled">
+        <img src="${img}" class="fav-poster" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'">
+        <div class="fav-overlay"><div class="fav-title">${escHtml(show.name)}</div></div>
+      </div>`;
+    }
+    return `<div class="fav-card fav-empty" style="cursor:default;pointer-events:none">
+      <div class="fav-plus" style="font-size:18px;color:var(--border)">◻</div>
+    </div>`;
+  }).join('');
+
+  const filterCounts = {
+    all:        shows.length,
+    watching:   shows.filter(s => s.status === 'watching').length,
+    completed:  shows.filter(s => s.status === 'completed').length,
+    watchlist:  shows.filter(s => s.status === 'watchlist').length,
+    watchlater: shows.filter(s => s.status === 'watchlater').length,
+    stopped:    shows.filter(s => s.status === 'stopped').length,
+  };
+  const filterLabels = { all:'All', watching:'Watching', completed:'Completed', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' };
+
+  const renderShowGrid = f => {
+    const filtered = f === 'all' ? shows : shows.filter(s => s.status === f);
+    if (!filtered.length) return `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No shows here yet</div>`;
+    return `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMini).join('')}</div>`;
+  };
+
+  const currentFilter = window._upFilter[uid];
+
   c.innerHTML = `
-    <div class="up-hero">
-      <div class="up-hero-inner">
-        <div class="up-avatar">
-          ${pic ? `<img src="${pic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span>${initial}</span>`}
+  <!-- HERO (same layout as own profile) -->
+  <div class="prof2-hero">
+    <div class="prof2-hero-overlay"></div>
+    <div class="prof2-hero-inner">
+      <div class="prof2-avatar-wrap" style="cursor:default">
+        ${pic
+          ? `<img src="${pic}" class="prof2-avatar-img">`
+          : `<div class="prof2-avatar-initial">${initial}</div>`}
+      </div>
+      <div class="prof2-info">
+        <div class="prof2-username">@${escHtml(uname)}</div>
+        <div class="prof2-since" style="margin-top:6px">${stats.watching || 0} watching · ${stats.completed || 0} completed</div>
+        <div style="margin-top:14px">
+          <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
+            onclick="toggleFollow('${uid}')">
+            ${following ? '✓ Following' : '+ Follow'}
+          </button>
         </div>
-        <div class="up-info">
-          <div class="up-username">@${escHtml(uname)}</div>
-          <div class="up-stats-row">
-            <span>${stats.totalShows || 0} shows</span>
-            <span class="up-dot">·</span>
-            <span>${stats.totalEps || 0} episodes</span>
-            <span class="up-dot">·</span>
-            <span>${stats.watching || 0} watching</span>
-          </div>
-        </div>
-        <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
-          onclick="toggleFollow('${uid}')">
-          ${following ? '✓ Following' : '+ Follow'}
-        </button>
+      </div>
+      <div class="prof2-hero-stats">
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.totalShows || 0}</div><div class="prof2-hstat-label">Shows</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.totalEps || 0}</div><div class="prof2-hstat-label">Episodes</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.watching || 0}</div><div class="prof2-hstat-label">Watching</div></div>
       </div>
     </div>
+  </div>
 
-    <div class="up-body">
-      <div class="up-section">
+  <!-- BODY (same two-column layout) -->
+  <div class="prof2-body">
+
+    <!-- Left: Favorites + Activity -->
+    <div class="prof2-left">
+      ${favorites.some(f => f) ? `
+      <div class="prof2-card">
+        <div class="prof2-card-label">Favorite Shows</div>
+        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
+      </div>` : ''}
+
+      <div class="prof2-card">
         <div class="prof2-card-label" style="margin-bottom:14px">Recent Activity</div>
         ${activity.length ? activity.slice(0, 20).map(a => {
           const fn  = typeLabels[a.type];
@@ -1048,15 +1105,64 @@ async function renderUserProfileView(uid) {
           </div>`;
         }).join('') : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No activity yet</div>`}
       </div>
+    </div>
 
-      <div class="up-section">
-        <div class="prof2-card-label" style="margin-bottom:14px">Currently Watching (${watching.length})</div>
-        ${watching.length
-          ? `<div class="up-shows-grid">${watching.map(showMini).join('')}</div>`
-          : `<div style="color:var(--text-muted);font-size:13px">Nothing watching right now</div>`}
-        ${completed.length ? `
-          <div class="prof2-card-label" style="margin-top:20px;margin-bottom:14px">Completed (${completed.length})</div>
-          <div class="up-shows-grid">${completed.slice(0, 12).map(showMini).join('')}</div>` : ''}
+    <!-- Right: Full library with filters -->
+    <div class="prof2-right">
+      <div class="prof2-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="prof2-card-label">Library</div>
+          <span style="font-size:12px;color:var(--text-muted)">${shows.length} shows</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          ${['all','watching','completed','watchlist','watchlater','stopped'].map(f => `
+            <button class="filter-btn${currentFilter === f ? ' active' : ''}"
+              style="font-size:11px;padding:4px 10px"
+              onclick="setUserProfileFilter('${uid}','${f}')">
+              ${filterLabels[f]}
+              <span class="filter-count">${filterCounts[f]}</span>
+            </button>`).join('')}
+        </div>
+        <div id="up-shows-grid-${uid}">
+          ${renderShowGrid(currentFilter)}
+        </div>
       </div>
+    </div>
+  </div>`;
+}
+
+function setUserProfileFilter(uid, f) {
+  if (!window._upFilter) window._upFilter = {};
+  window._upFilter[uid] = f;
+  const profile = window._upCache?.[uid];
+  const shows   = profile?.shows || [];
+  const filtered = f === 'all' ? shows : shows.filter(s => s.status === f);
+
+  document.querySelectorAll(`#up-shows-grid-${uid}`).forEach(() => {});
+  const grid = document.getElementById(`up-shows-grid-${uid}`);
+  if (!grid) return;
+
+  document.querySelectorAll(`.filter-btn[onclick*="'${uid}'"]`).forEach(btn => {
+    const m = btn.getAttribute('onclick').match(/'([^']+)'\)$/);
+    btn.classList.toggle('active', m && m[1] === f);
+  });
+
+  const showMiniLocal = s => {
+    const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    const badgeColor = { watching:'#f4a534', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[s.status] || '#888';
+    const badgeLabel = { watching:'Watching', completed:'Done', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[s.status] || '';
+    return `<div class="up-show-card" title="${escHtml(s.name)}">
+      <div style="position:relative">
+        <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
+        ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
+      </div>
+      <div class="up-show-name">${escHtml(s.name)}</div>
     </div>`;
+  };
+
+  if (!filtered.length) {
+    grid.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No shows here yet</div>`;
+  } else {
+    grid.innerHTML = `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMiniLocal).join('')}</div>`;
+  }
 }

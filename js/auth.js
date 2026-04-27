@@ -137,7 +137,7 @@ async function submitUsername() {
     await db.runTransaction(async tx => {
       const snap = await tx.get(usernameRef);
       if (snap.exists) throw new Error('taken');
-      tx.set(usernameRef, { uid });
+      tx.set(usernameRef, { uid, email: currentUser.email || '' });
       tx.set(userRef, { username: name }, { merge: true });
     });
 
@@ -201,7 +201,7 @@ async function submitChangeUsername() {
       const snap = await tx.get(newNameRef);
       if (snap.exists) throw new Error('taken');
       if (oldNameRef) tx.delete(oldNameRef);
-      tx.set(newNameRef, { uid });
+      tx.set(newNameRef, { uid, email: currentUser.email || '' });
       tx.set(userRef, { username: name }, { merge: true });
     });
 

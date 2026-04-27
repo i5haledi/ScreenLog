@@ -1,14 +1,19 @@
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 function navigate(view) {
+  // Removed tabs redirect to the All view with the appropriate filter pre-set
+  const filterRedirects = { stopped: 'stopped', watchlater: 'watchlater', uptodate: 'uptodate', finished: 'finished' };
+  if (filterRedirects[view]) {
+    completedFilter = filterRedirects[view];
+    view = 'completed';
+  }
+
   state.view = view;
   window._showPage = 40;
   document.querySelectorAll('.nav-item').forEach(el =>
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
-    watchlater: 'Watch Later', stopped: 'Stopped',
-    completed: 'All', uptodate: 'Up to Date', finished: 'Finished',
-    activity: 'Activity', profile: 'My Profile', people: 'People'
+    completed: 'All', activity: 'Activity', profile: 'My Profile', people: 'People'
   };
   document.getElementById('view-title').textContent = titles[view] || view;
   closeSidebar();
