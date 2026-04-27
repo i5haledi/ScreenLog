@@ -13,7 +13,8 @@ function navigate(view) {
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
-    completed: 'All', activity: 'Activity', profile: 'My Profile', people: 'People'
+    completed: 'All', activity: 'Activity', profile: 'My Profile', people: 'People',
+    settings: 'Settings'
   };
   document.getElementById('view-title').textContent = titles[view] || view;
   closeSidebar();
@@ -98,6 +99,29 @@ function markSeasonWatched(showId, snum, markAll) {
   syncSaveShow(showId); // FIX: sync the bulk episode change
   renderEpisodesTab(document.getElementById('m-tab-content'));
   renderModalActions(showId);
+}
+
+// Mark all episodes as watched for a completed show (e.g. after import or first open)
+function ensureAllEpsMarked(showId) {
+  const d = state.shows[showId];
+  if (!d || d.status !== 'completed') return;
+  const seasonsData = state.seasons[showId];
+  if (!seasonsData || !Object.keys(seasonsData).length) return;
+  if (!d.watched) d.watched = {};
+  let changed = false;
+  Object.entries(seasonsData).forEach(([snum, sData]) => {
+    (sData.episodes || []).forEach(ep => {
+      const key = `${snum}_${ep.episode_number}`;
+      if (!d.watched[key]) {
+        d.watched[key] = true;
+        changed = true;
+      }
+    });
+  });
+  if (changed) {
+    save();
+    syncSaveShow(showId);
+  }
 }
 
 // ─── QUICK MARK (CONFIRM FLOW) ────────────────────────────────────────────────
@@ -508,7 +532,8 @@ function handlePicUpload(event) {
       // FIX: safe fallback if both username and email are null
       const label = currentUsername || currentUser?.email || 'U';
       setUserDisplay(label[0].toUpperCase(), label);
-      renderProfile();
+      if (state.view === 'settings') renderSettings();
+      else renderProfile();
       showToast('Profile photo updated');
     };
     img.src = e.target.result;

@@ -138,7 +138,7 @@ async function submitChangeUsername() {
     hideChangeUsernameModal();
     showToast('Username updated!');
     syncPublicProfile();
-    if (state.view === 'profile') render();
+    if (state.view === 'profile' || state.view === 'settings') render();
   } catch(e) {
     if (e.message === 'taken') {
       error.textContent = 'This username is taken. Try another.';
@@ -148,6 +148,167 @@ async function submitChangeUsername() {
     btn.textContent = 'Save Username';
     btn.disabled    = false;
   }
+}
+
+// ─── SETTINGS: CHANGE EMAIL ───────────────────────────────────────────────────
+function showChangeEmailModal() {
+  document.getElementById('ce-new-email').value = '';
+  document.getElementById('ce-password').value  = '';
+  document.getElementById('ce-error').textContent = '';
+  const btn = document.getElementById('ce-btn');
+  if (btn) { btn.textContent = 'Update Email'; btn.disabled = false; }
+  document.getElementById('change-email-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('ce-new-email')?.focus(), 50);
+}
+
+function hideChangeEmailModal() {
+  document.getElementById('change-email-modal').style.display = 'none';
+}
+
+async function submitChangeEmail() {
+  const newEmail  = document.getElementById('ce-new-email').value.trim();
+  const password  = document.getElementById('ce-password').value;
+  const errorEl   = document.getElementById('ce-error');
+  const btn       = document.getElementById('ce-btn');
+
+  errorEl.textContent = '';
+  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    errorEl.textContent = 'Enter a valid email address.'; return;
+  }
+  if (!password) { errorEl.textContent = 'Enter your current password.'; return; }
+  if (newEmail === currentUser?.email) { errorEl.textContent = 'This is already your email.'; return; }
+
+  btn.textContent = 'Updating…'; btn.disabled = true;
+  try {
+    const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+    await currentUser.reauthenticateWithCredential(cred);
+    await currentUser.updateEmail(newEmail);
+    await db.collection('usernames').doc(currentUsername).set({ email: newEmail }, { merge: true });
+    hideChangeEmailModal();
+    if (document.getElementById('user-email')) document.getElementById('user-email').textContent = currentUsername || newEmail;
+    showToast('Email updated successfully');
+    if (state.view === 'settings') renderSettings();
+  } catch(e) {
+    const msgs = {
+      'auth/wrong-password':     'Incorrect password.',
+      'auth/email-already-in-use': 'This email is already in use.',
+      'auth/invalid-email':      'Invalid email address.',
+      'auth/requires-recent-login': 'Please sign out and sign in again before changing your email.',
+    };
+    errorEl.textContent = msgs[e.code] || 'Something went wrong. Try again.';
+    btn.textContent = 'Update Email'; btn.disabled = false;
+  }
+}
+
+// ─── SETTINGS: CHANGE PASSWORD ────────────────────────────────────────────────
+function showChangePasswordModal() {
+  ['cp-current','cp-new','cp-confirm'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('cp-error').textContent = '';
+  const btn = document.getElementById('cp-btn');
+  if (btn) { btn.textContent = 'Update Password'; btn.disabled = false; }
+  document.getElementById('change-password-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('cp-current')?.focus(), 50);
+}
+
+function hideChangePasswordModal() {
+  document.getElementById('change-password-modal').style.display = 'none';
+}
+
+async function submitChangePassword() {
+  const current  = document.getElementById('cp-current').value;
+  const newPwd   = document.getElementById('cp-new').value;
+  const confirm  = document.getElementById('cp-confirm').value;
+  const errorEl  = document.getElementById('cp-error');
+  const btn      = document.getElementById('cp-btn');
+
+  errorEl.textContent = '';
+  if (!current)           { errorEl.textContent = 'Enter your current password.'; return; }
+  if (newPwd.length < 6)  { errorEl.textContent = 'New password must be at least 6 characters.'; return; }
+  if (newPwd !== confirm) { errorEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.textContent = 'Updating…'; btn.disabled = true;
+  try {
+    const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, current);
+    await currentUser.reauthenticateWithCredential(cred);
+    await currentUser.updatePassword(newPwd);
+    hideChangePasswordModal();
+    showToast('Password updated successfully');
+  } catch(e) {
+    const msgs = {
+      'auth/wrong-password':        'Incorrect current password.',
+      'auth/requires-recent-login': 'Please sign out and sign in again before changing your password.',
+    };
+    errorEl.textContent = msgs[e.code] || 'Something went wrong. Try again.';
+    btn.textContent = 'Update Password'; btn.disabled = false;
+  }
+}
+
+// ─── SETTINGS: DELETE ACCOUNT ─────────────────────────────────────────────────
+function showDeleteAccountModal() {
+  document.getElementById('da-password').value    = '';
+  document.getElementById('da-error').textContent = '';
+  const btn = document.getElementById('da-btn');
+  if (btn) { btn.textContent = 'Delete My Account'; btn.disabled = false; }
+  document.getElementById('delete-account-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('da-password')?.focus(), 50);
+}
+
+function hideDeleteAccountModal() {
+  document.getElementById('delete-account-modal').style.display = 'none';
+}
+
+async function submitDeleteAccount() {
+  const password = document.getElementById('da-password').value;
+  const errorEl  = document.getElementById('da-error');
+  const btn      = document.getElementById('da-btn');
+
+  errorEl.textContent = '';
+  if (!password) { errorEl.textContent = 'Enter your password to confirm.'; return; }
+
+  btn.textContent = 'Deleting…'; btn.disabled = true;
+  try {
+    const uid  = currentUser.uid;
+    const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+    await currentUser.reauthenticateWithCredential(cred);
+
+    // Delete Firestore data
+    const showsSnap   = await db.collection('users').doc(uid).collection('shows').get();
+    await _batchDeleteSnap(showsSnap);
+    const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();
+    await _batchDeleteSnap(seasonsSnap);
+    if (currentUsername) await db.collection('usernames').doc(currentUsername).delete().catch(() => {});
+    await db.collection('publicProfiles').doc(uid).delete().catch(() => {});
+    await db.collection('users').doc(uid).delete().catch(() => {});
+
+    // Delete Firebase Auth account
+    await currentUser.delete();
+
+    localStorage.removeItem('sl_state');
+    localStorage.removeItem('sl_seasons');
+    if (uid) localStorage.removeItem('sl_username_' + uid);
+    window.location.href = 'login.html';
+  } catch(e) {
+    const msgs = {
+      'auth/wrong-password':        'Incorrect password.',
+      'auth/requires-recent-login': 'Please sign out and sign in again before deleting your account.',
+    };
+    errorEl.textContent = msgs[e.code] || 'Something went wrong. Try again.';
+    btn.textContent = 'Delete My Account'; btn.disabled = false;
+  }
+}
+
+// ─── SETTINGS: REMOVE PROFILE PIC ─────────────────────────────────────────────
+async function removeProfilePic() {
+  state.profilePic = null;
+  save();
+  if (currentUser) {
+    try { await db.collection('users').doc(currentUser.uid).set({ profilePic: null }, { merge: true }); } catch(e) {}
+  }
+  const label = currentUsername || currentUser?.email || 'U';
+  setUserDisplay(label[0].toUpperCase(), label);
+  if (state.view === 'settings') renderSettings();
+  if (state.view === 'profile')  renderProfile();
+  showToast('Profile photo removed');
 }
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────

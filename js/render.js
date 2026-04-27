@@ -14,6 +14,7 @@ function render() {
   else if (v === 'activity') renderActivity();
   else if (v === 'profile')  renderProfile();
   else if (v === 'people')   renderPeople();
+  else if (v === 'settings') renderSettings();
   else if (v.startsWith('user:')) renderUserProfileView(v.split(':').slice(1).join(':'));
   else if (v.startsWith('list:')) renderCustomList(v.split(':')[1]);
   renderSidebarLists();
@@ -304,7 +305,8 @@ function showCard(show, status) {
                    : status === 'watchlater' ? '#4ecdc4'
                    : status === 'stopped'    ? '#ff6b6b'
                    : '#7c6aff';
-  const img        = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;  const isSelected = window._selectedShows?.has(String(show.id));
+  const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+  const isSelected = window._selectedShows?.has(String(show.id));
   const inSelectMode = !!window._selectMode;
 
   return `
@@ -450,6 +452,7 @@ async function openShow(id) {
   window.openSeasons[String(id)] = null;
 
   if (!state.seasons[id]) await loadSeasons(id, show);
+  if (state.shows[id]?.status === 'completed') ensureAllEpsMarked(id);
   checkUpToDate(id);
   renderModalTab();
 }
@@ -1029,8 +1032,8 @@ async function renderUserProfileView(uid) {
         <div class="fav-overlay"><div class="fav-title">${escHtml(show.name)}</div></div>
       </div>`;
     }
-    return `<div class="fav-card fav-empty" style="cursor:default;pointer-events:none">
-      <div class="fav-plus" style="font-size:18px;color:var(--border)">◻</div>
+    return `<div class="fav-card fav-empty" style="cursor:default;pointer-events:none;opacity:0.4">
+      <div class="fav-plus" style="font-size:18px;color:var(--text-muted)">◻</div>
     </div>`;
   }).join('');
 
@@ -1064,7 +1067,7 @@ async function renderUserProfileView(uid) {
       </div>
       <div class="prof2-info">
         <div class="prof2-username">@${escHtml(uname)}</div>
-        <div class="prof2-since" style="margin-top:6px">${stats.watching || 0} watching · ${stats.completed || 0} completed</div>
+        <div class="prof2-since" style="margin-top:4px">${stats.watching || 0} watching · ${stats.completed || 0} completed · ${stats.watchlist || 0} watchlist</div>
         <div style="margin-top:14px">
           <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
             onclick="toggleFollow('${uid}')">
@@ -1078,6 +1081,8 @@ async function renderUserProfileView(uid) {
         <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.totalEps || 0}</div><div class="prof2-hstat-label">Episodes</div></div>
         <div class="prof2-hstat-div"></div>
         <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.watching || 0}</div><div class="prof2-hstat-label">Watching</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.completed || 0}</div><div class="prof2-hstat-label">Completed</div></div>
       </div>
     </div>
   </div>
@@ -1085,13 +1090,38 @@ async function renderUserProfileView(uid) {
   <!-- BODY (same two-column layout) -->
   <div class="prof2-body">
 
-    <!-- Left: Favorites + Activity -->
+    <!-- Left: Favorites + Stats + Activity -->
     <div class="prof2-left">
-      ${favorites.some(f => f) ? `
       <div class="prof2-card">
         <div class="prof2-card-label">Favorite Shows</div>
         <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
-      </div>` : ''}
+      </div>
+
+      <!-- Status breakdown -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">Library Stats</div>
+        <div class="prof2-breakdown">
+          ${[
+            ['Watching',   stats.watching  || 0, '#f4a534'],
+            ['Completed',  stats.completed || 0, '#7c6aff'],
+            ['Watchlist',  stats.watchlist || 0, '#4ecdc4'],
+          ].map(([label, count, color]) => {
+            const maxVal = Math.max(stats.watching||0, stats.completed||0, stats.watchlist||0, 1);
+            const pct = Math.round(count / maxVal * 100);
+            return `<div class="prof2-bk-row">
+              <div class="prof2-bk-label">
+                <span class="prof2-bk-dot" style="background:${color}"></span>${label}
+              </div>
+              <div class="prof2-bk-right">
+                <div class="prof2-bk-bar-wrap">
+                  <div class="prof2-bk-bar" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <span class="prof2-bk-num">${count}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
 
       <div class="prof2-card">
         <div class="prof2-card-label" style="margin-bottom:14px">Recent Activity</div>
@@ -1138,7 +1168,6 @@ function setUserProfileFilter(uid, f) {
   const shows   = profile?.shows || [];
   const filtered = f === 'all' ? shows : shows.filter(s => s.status === f);
 
-  document.querySelectorAll(`#up-shows-grid-${uid}`).forEach(() => {});
   const grid = document.getElementById(`up-shows-grid-${uid}`);
   if (!grid) return;
 
@@ -1165,4 +1194,140 @@ function setUserProfileFilter(uid, f) {
   } else {
     grid.innerHTML = `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMiniLocal).join('')}</div>`;
   }
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function renderSettings() {
+  const c         = document.getElementById('content');
+  const uname     = currentUsername || '';
+  const email     = currentUser?.email || '';
+  const profilePic = state.profilePic || null;
+  const initial   = (uname || email || 'U')[0].toUpperCase();
+  const joinDate  = currentUser?.metadata?.creationTime
+    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  c.innerHTML = `
+  <input type="file" id="settings-pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event);renderSettings()">
+
+  <div class="settings-page">
+
+    <!-- Profile section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Profile</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Profile Photo</div>
+          <div class="settings-row-desc">Shown on your profile and activity feed</div>
+        </div>
+        <div class="settings-row-control" style="gap:14px;align-items:center">
+          <div class="settings-avatar-preview" onclick="document.getElementById('settings-pic-input').click()" title="Change photo">
+            ${profilePic
+              ? `<img src="${profilePic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
+              : `<span style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--accent)">${initial}</span>`}
+            <div class="settings-avatar-edit-overlay">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+          </div>
+          <button class="btn" onclick="document.getElementById('settings-pic-input').click()">Change Photo</button>
+          ${profilePic ? `<button class="btn danger" onclick="removeProfilePic()" style="font-size:12px">Remove</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Account section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Account</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Username</div>
+          <div class="settings-row-desc">Your public @handle — must be unique</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap">
+            <span class="settings-field-prefix">@</span>
+            <div class="settings-field-value">${escHtml(uname) || '<span style="color:var(--text-muted)">Not set</span>'}</div>
+          </div>
+          <button class="btn" onclick="showChangeUsernameModal()">Change Username</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Email Address</div>
+          <div class="settings-row-desc">Used to sign in</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap">
+            <div class="settings-field-value">${escHtml(email)}</div>
+          </div>
+          <button class="btn" onclick="showChangeEmailModal()">Change Email</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Password</div>
+          <div class="settings-row-desc">Update your login password</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap">
+            <div class="settings-field-value" style="letter-spacing:3px;color:var(--text-muted)">••••••••</div>
+          </div>
+          <button class="btn" onclick="showChangePasswordModal()">Change Password</button>
+        </div>
+      </div>
+
+      ${joinDate ? `<div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Member Since</div>
+          <div class="settings-row-desc">${joinDate}</div>
+        </div>
+        <div class="settings-row-control"></div>
+      </div>` : ''}
+    </div>
+
+    <!-- Library section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Library</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Import from TV Time</div>
+          <div class="settings-row-desc">Import your shows from a TV Time CSV export</div>
+        </div>
+        <div class="settings-row-control">
+          <input type="file" id="settings-tvtime-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
+          <button class="btn" onclick="document.getElementById('settings-tvtime-input').click()">Import CSV</button>
+        </div>
+      </div>
+
+      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Clear Library</div>
+          <div class="settings-row-desc">Delete all shows, history, and custom lists</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="btn danger" onclick="confirmClearLibrary()">Clear Library</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="settings-section settings-danger-section">
+      <div class="settings-section-title" style="color:var(--red)">Danger Zone</div>
+
+      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Delete Account</div>
+          <div class="settings-row-desc">Permanently delete your account and all associated data. This cannot be undone.</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="btn danger" onclick="showDeleteAccountModal()">Delete Account</button>
+        </div>
+      </div>
+    </div>
+
+  </div>`;
 }
