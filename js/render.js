@@ -350,7 +350,7 @@ function renderActivity() {
   const iconMap    = { ep: '▶', done: '✓', add: '＋', list: '◈', wl: '◈', remove: '✕' };
   const typeLabels = {
     ep:     a => `Watched <span class="show-name">${escHtml(a.detail)}</span> · <strong>${escHtml(a.showName)}</strong>`,
-    done:   a => `Marked <strong>${escHtml(a.showName)}</strong> as <span style="color:var(--green);font-weight:600">Completed</span>`,
+    done:   a => `Marked <strong>${escHtml(a.showName)}</strong> as <span style="color:var(--green);font-weight:600">watched</span>`,
     add:    a => `Started watching <strong>${escHtml(a.showName)}</strong>`,
     wl:     a => `Added <strong>${escHtml(a.showName)}</strong> to Watchlist`,
     list:   a => `Added <strong>${escHtml(a.showName)}</strong> to list <span style="color:var(--accent3)">${escHtml(a.detail)}</span>`,
@@ -384,7 +384,10 @@ function renderActivity() {
       const label   = labelFn ? labelFn(a) : escHtml(a.showName);
       html += `
         <div class="activity-item" onclick="a_click(${a.showId})">
-          <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+          <div class="activity-tl-node">
+            <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+            <div class="activity-tl-line"></div>
+          </div>
           <div class="activity-body">
             <div class="activity-text">${label}</div>
             <div class="activity-time">${timeStr(a.ts)}</div>
@@ -1001,18 +1004,30 @@ async function renderUserProfileView(uid) {
   const iconMap = { ep:'▶', done:'✓', add:'＋', list:'◈', wl:'◈', remove:'✕' };
   const typeLabels = {
     ep:     a => `Watched ${escHtml(a.detail || '')} · <strong>${escHtml(a.showName || '')}</strong>`,
-    done:   a => `Marked <strong>${escHtml(a.showName || '')}</strong> as Completed`,
+    done:   a => `Marked <strong>${escHtml(a.showName || '')}</strong> as <span style="color:var(--green);font-weight:600">watched</span>`,
     add:    a => `Started watching <strong>${escHtml(a.showName || '')}</strong>`,
     wl:     a => `Added <strong>${escHtml(a.showName || '')}</strong> to Watchlist`,
     list:   a => `Added <strong>${escHtml(a.showName || '')}</strong> to list ${escHtml(a.detail || '')}`,
     remove: a => `Removed <strong>${escHtml(a.showName || '')}</strong>`,
   };
-  const dateStr = ts => new Date(ts).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const dateStr = ts => {
+    const d = new Date(ts);
+    const now = new Date(); now.setHours(0,0,0,0);
+    const yest = new Date(now); yest.setDate(now.getDate() - 1);
+    const day = new Date(d); day.setHours(0,0,0,0);
+    if (day.getTime() === now.getTime())  return 'Today';
+    if (day.getTime() === yest.getTime()) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  };
+
+  const _isUpToDate = s => s.status === 'completed' && s.show_status !== 'Ended' && s.show_status !== 'Canceled';
+  const _isFinished = s => s.status === 'completed' && (s.show_status === 'Ended' || s.show_status === 'Canceled');
 
   const showMini = s => {
     const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
-    const badgeColor = { watching:'#f4a534', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[s.status] || '#888';
-    const badgeLabel = { watching:'Watching', completed:'Done', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[s.status] || '';
+    const disp = _isUpToDate(s) ? 'uptodate' : s.status;
+    const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
+    const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
     return `<div class="up-show-card" title="${escHtml(s.name)}">
       <div style="position:relative">
         <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
@@ -1040,15 +1055,23 @@ async function renderUserProfileView(uid) {
   const filterCounts = {
     all:        shows.length,
     watching:   shows.filter(s => s.status === 'watching').length,
-    completed:  shows.filter(s => s.status === 'completed').length,
+    uptodate:   shows.filter(_isUpToDate).length,
+    completed:  shows.filter(_isFinished).length,
     watchlist:  shows.filter(s => s.status === 'watchlist').length,
     watchlater: shows.filter(s => s.status === 'watchlater').length,
     stopped:    shows.filter(s => s.status === 'stopped').length,
   };
-  const filterLabels = { all:'All', watching:'Watching', completed:'Completed', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' };
+  const filterLabels = { all:'All', watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' };
+
+  const _filterShows = (arr, f) => {
+    if (f === 'all')       return arr;
+    if (f === 'uptodate')  return arr.filter(_isUpToDate);
+    if (f === 'completed') return arr.filter(_isFinished);
+    return arr.filter(s => s.status === f);
+  };
 
   const renderShowGrid = f => {
-    const filtered = f === 'all' ? shows : shows.filter(s => s.status === f);
+    const filtered = _filterShows(shows, f);
     if (!filtered.length) return `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No shows here yet</div>`;
     return `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMini).join('')}</div>`;
   };
@@ -1125,15 +1148,21 @@ async function renderUserProfileView(uid) {
 
       <div class="prof2-card">
         <div class="prof2-card-label" style="margin-bottom:14px">Recent Activity</div>
-        ${activity.length ? activity.slice(0, 20).map(a => {
+        ${activity.length ? `<div class="up-timeline">${activity.slice(0, 20).map((a, idx, arr) => {
           const fn  = typeLabels[a.type];
           const lbl = fn ? fn(a) : escHtml(a.showName || '');
-          return `<div class="up-activity-item">
-            <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
-            <div class="up-activity-text">${lbl}</div>
-            <div class="up-activity-time">${dateStr(a.ts)}</div>
+          const isLast = idx === arr.length - 1;
+          return `<div class="up-timeline-entry">
+            <div class="up-timeline-left">
+              <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+              ${isLast ? '' : '<div class="up-timeline-bar"></div>'}
+            </div>
+            <div class="up-timeline-body">
+              <div class="up-activity-text">${lbl}</div>
+              <div class="up-activity-time">${dateStr(a.ts)}</div>
+            </div>
           </div>`;
-        }).join('') : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No activity yet</div>`}
+        }).join('')}</div>` : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No activity yet</div>`}
       </div>
     </div>
 
@@ -1145,7 +1174,7 @@ async function renderUserProfileView(uid) {
           <span style="font-size:12px;color:var(--text-muted)">${shows.length} shows</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-          ${['all','watching','completed','watchlist','watchlater','stopped'].map(f => `
+          ${['all','watching','uptodate','completed','watchlist','watchlater','stopped'].map(f => `
             <button class="filter-btn${currentFilter === f ? ' active' : ''}"
               style="font-size:11px;padding:4px 10px"
               onclick="setUserProfileFilter('${uid}','${f}')">
@@ -1166,7 +1195,14 @@ function setUserProfileFilter(uid, f) {
   window._upFilter[uid] = f;
   const profile = window._upCache?.[uid];
   const shows   = profile?.shows || [];
-  const filtered = f === 'all' ? shows : shows.filter(s => s.status === f);
+
+  const isUpToDate = s => s.status === 'completed' && s.show_status !== 'Ended' && s.show_status !== 'Canceled';
+  const isFinished = s => s.status === 'completed' && (s.show_status === 'Ended' || s.show_status === 'Canceled');
+
+  const filtered = f === 'all' ? shows
+    : f === 'uptodate'  ? shows.filter(isUpToDate)
+    : f === 'completed' ? shows.filter(isFinished)
+    : shows.filter(s => s.status === f);
 
   const grid = document.getElementById(`up-shows-grid-${uid}`);
   if (!grid) return;
@@ -1177,9 +1213,10 @@ function setUserProfileFilter(uid, f) {
   });
 
   const showMiniLocal = s => {
-    const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
-    const badgeColor = { watching:'#f4a534', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[s.status] || '#888';
-    const badgeLabel = { watching:'Watching', completed:'Done', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[s.status] || '';
+    const img  = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    const disp = isUpToDate(s) ? 'uptodate' : s.status;
+    const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
+    const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
     return `<div class="up-show-card" title="${escHtml(s.name)}">
       <div style="position:relative">
         <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">

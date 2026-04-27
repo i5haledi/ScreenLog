@@ -26,7 +26,7 @@ async function syncPublicProfile() {
 
     const shows = allShows
       .filter(d => d.show)
-      .map(d => ({ id: String(d.show.id), name: d.show.name, poster_path: d.show.poster_path || null, status: d.status }));
+      .map(d => ({ id: String(d.show.id), name: d.show.name, poster_path: d.show.poster_path || null, status: d.status, show_status: d.show.status || null }));
 
     await db.collection('publicProfiles').doc(uid).set({
       username:    currentUsername,

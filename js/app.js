@@ -45,8 +45,6 @@ function setStatus(id, status) {
       });
     });
     logActivity('done', id, show.name, show.poster_path, '');
-  } else if (status === 'watching') {
-    logActivity('add', id, show.name, show.poster_path, '');
   } else if (status === 'watchlist') {
     logActivity('wl', id, show.name, show.poster_path, '');
   }
