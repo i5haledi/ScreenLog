@@ -70,34 +70,6 @@
 <!-- TOAST -->
 <div id="toast"><span class="toast-icon">✓</span><span id="toast-msg"></span></div>
 
-<!-- USERNAME SETUP MODAL -->
-<div class="modal-overlay" id="username-modal" style="display:none">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
-      <div class="modal-info">
-        <div class="modal-title" style="font-size:22px">Pick a Username</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">This is how you'll appear on Screenlog.</div>
-      </div>
-    </div>
-    <div class="modal-body" style="padding-top:8px">
-      <div style="margin-bottom:16px">
-        <div style="position:relative">
-          <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none">@</span>
-          <input type="text" class="input-field" id="username-input"
-            placeholder="yourname"
-            maxlength="20"
-            style="padding-left:30px"
-            oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"
-          >
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Letters, numbers and underscores only. 3–20 characters.</div>
-        <div id="username-error" style="font-size:13px;color:var(--red);margin-top:8px;min-height:18px"></div>
-      </div>
-      <button class="btn primary" id="username-btn" onclick="submitUsername()" style="width:100%;justify-content:center">Save Username</button>
-    </div>
-  </div>
-</div>
-
 <!-- CHANGE USERNAME MODAL -->
 <div class="modal-overlay" id="change-username-modal" style="display:none" onclick="if(event.target===this)hideChangeUsernameModal()">
   <div class="modal" style="max-width:400px">

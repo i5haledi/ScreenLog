@@ -43,24 +43,6 @@ auth.onAuthStateChanged(async user => {
     const displayLabel = currentUsername || user.email || 'User';
     setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
 
-    // Only show modal if NEITHER cache NOR Firestore has a username
-    if (!currentUsername) {
-      try {
-        const usernamesSnap = await db.collection('usernames').where('uid', '==', uid).limit(1).get();
-        if (!usernamesSnap.empty) {
-          const foundName = usernamesSnap.docs[0].id;
-          currentUsername = foundName;
-          localStorage.setItem('sl_username_' + uid, foundName);
-          await db.collection('users').doc(uid).set({ username: foundName }, { merge: true });
-          setUserDisplay(foundName[0].toUpperCase(), foundName);
-        } else {
-          showUsernameModal();
-        }
-      } catch(e) {
-        showUsernameModal();
-      }
-    }
-
     // FIX: Clear local state before loading from Firestore.
     // Prevents deleted shows on other devices from persisting,
     // and prevents cross-account data leaks.
@@ -101,61 +83,6 @@ function setUserDisplay(initial, label) {
     }
   }
   if (emailEl) emailEl.textContent = label || '';
-}
-
-// ─── USERNAME MODAL ───────────────────────────────────────────────────────────
-function showUsernameModal() {
-  document.getElementById('username-modal').style.display = 'flex';
-}
-
-function hideUsernameModal() {
-  document.getElementById('username-modal').style.display = 'none';
-}
-
-async function submitUsername() {
-  const input = document.getElementById('username-input');
-  const error = document.getElementById('username-error');
-  const btn   = document.getElementById('username-btn');
-  const raw   = input.value.trim();
-  const name  = raw.toLowerCase().replace(/[^a-z0-9_]/g, '');
-
-  error.textContent = '';
-  if (!name || name.length < 3)  { error.textContent = 'Username must be at least 3 characters.'; return; }
-  if (name.length > 20)          { error.textContent = 'Username must be 20 characters or less.'; return; }
-  if (raw !== name)              { error.textContent = 'Only letters, numbers and underscores allowed.'; return; }
-
-  btn.textContent = 'Checking…';
-  btn.disabled    = true;
-
-  try {
-    const uid          = currentUser.uid;
-    const userRef      = db.collection('users').doc(uid);
-    const usernameRef  = db.collection('usernames').doc(name);
-
-    // FIX: Use a Firestore transaction to atomically claim the username.
-    // Prevents two concurrent signups from claiming the same name.
-    await db.runTransaction(async tx => {
-      const snap = await tx.get(usernameRef);
-      if (snap.exists) throw new Error('taken');
-      tx.set(usernameRef, { uid, email: currentUser.email || '' });
-      tx.set(userRef, { username: name }, { merge: true });
-    });
-
-    currentUsername = name;
-    localStorage.setItem('sl_username_' + uid, name);
-    const displayLabel = name;
-    setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
-    hideUsernameModal();
-    syncPublicProfile();
-  } catch(e) {
-    if (e.message === 'taken') {
-      error.textContent = 'This username is taken. Try another.';
-    } else {
-      error.textContent = 'Something went wrong. Try again.';
-    }
-    btn.textContent = 'Save Username';
-    btn.disabled    = false;
-  }
 }
 
 // ─── CHANGE USERNAME ─────────────────────────────────────────────────────────
