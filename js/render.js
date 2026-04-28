@@ -378,15 +378,16 @@ function renderActivity() {
   let html = `<div class="activity-feed">`;
   Object.entries(groups).forEach(([dayStr, items]) => {
     html += `<div class="activity-day-group"><div class="activity-day-label">${dayLabel(dayStr)}</div>`;
-    items.forEach(a => {
+    items.forEach((a, idx) => {
       const thumb   = a.posterId ? `${IMG_SM}${a.posterId}` : FALLBACK_IMG;
       const labelFn = typeLabels[a.type];
       const label   = labelFn ? labelFn(a) : escHtml(a.showName);
+      const isLast  = idx === items.length - 1;
       html += `
         <div class="activity-item" onclick="a_click(${a.showId})">
           <div class="activity-tl-node">
             <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
-            <div class="activity-tl-line"></div>
+            ${!isLast ? '<div class="activity-tl-line"></div>' : ''}
           </div>
           <div class="activity-body">
             <div class="activity-text">${label}</div>
@@ -436,13 +437,15 @@ async function openShow(id) {
 
   // ── Fetch fresh data + IMDb ID in background ──────────────────────────
   try {
-    const [fresh, extIds] = await Promise.all([
+    const [fresh, extIds, credits] = await Promise.all([
       fetchShow(id),
-      tmdbFetch(`${TMDB}/tv/${id}/external_ids`).then(r => r.json()).catch(() => ({}))
+      tmdbFetch(`${TMDB}/tv/${id}/external_ids`).then(r => r.json()).catch(() => ({})),
+      tmdbFetch(`${TMDB}/tv/${id}/credits`).then(r => r.json()).catch(() => ({}))
     ]);
     if (fresh.id) {
       show = fresh;
       show._imdb_id = extIds.imdb_id || null;
+      show._credits = credits;
       if (state.shows[id]) { state.shows[id].show = show; save(); }
       currentShow = show;
       _populateModal(show, id);
@@ -477,7 +480,6 @@ function _populateModal(show, id) {
     : '';
 
   document.getElementById('m-poster').src = img;
-  document.getElementById('m-title').textContent = show.name || 'Unknown';
   document.getElementById('m-meta').innerHTML = `
     <span>${[seas].filter(Boolean).join(' · ')}${eps}</span>
     <span style="display:inline-flex;align-items:center;gap:8px;margin-left:6px">
@@ -487,12 +489,15 @@ function _populateModal(show, id) {
   const startYear = (show.first_air_date || '').slice(0, 4);
   const endYear   = show.last_air_date ? new Date(show.last_air_date).getFullYear() : null;
   const isEnded   = show.status === 'Ended' || show.status === 'Canceled';
-  const dateRange = startYear
-    ? `<span class="date-range-tag">${startYear} – ${isEnded && endYear ? endYear : 'Present'}</span>`
+  const dateLabel = startYear
+    ? `${startYear}${isEnded && endYear ? `–${endYear}` : '–Present'}`
     : '';
 
+  const titleEl = document.getElementById('m-title');
+  titleEl.innerHTML = `${escHtml(show.name || 'Unknown')}${dateLabel ? `<span class="date-range-tag" style="vertical-align:middle;margin-left:10px">${dateLabel}</span>` : ''}`;
+
   document.getElementById('m-genres').innerHTML =
-    (show.genres || []).map(g => `<span class="genre-tag">${g.name}</span>`).join('') + dateRange;
+    (show.genres || []).map(g => `<span class="genre-tag">${g.name}</span>`).join('');
   document.getElementById('m-overview').textContent = show.overview || '';
   document.getElementById('m-tabs').innerHTML = `
     <div class="tab active" onclick="switchTab('episodes')">Episodes</div>
@@ -607,22 +612,55 @@ function renderEpisodesTab(el) {
 }
 
 function renderAboutTab(el) {
-  const show   = currentShow;
+  const show = currentShow;
   if (!show) return;
-  const network = (show.networks || []).map(n => n.name).join(', ') || '—';
+
+  const langMap = {
+    en:'English', es:'Spanish', fr:'French', de:'German', it:'Italian',
+    ja:'Japanese', ko:'Korean', zh:'Chinese', pt:'Portuguese', ru:'Russian',
+    ar:'Arabic', hi:'Hindi', nl:'Dutch', sv:'Swedish', tr:'Turkish',
+    pl:'Polish', da:'Danish', fi:'Finnish', no:'Norwegian', cs:'Czech',
+    el:'Greek', ro:'Romanian', hu:'Hungarian', id:'Indonesian', th:'Thai',
+    he:'Hebrew', uk:'Ukrainian', vi:'Vietnamese', ms:'Malay'
+  };
+
+  const network     = (show.networks || []).map(n => n.name).join(', ') || '—';
+  const langDisplay = langMap[show.original_language] || (show.original_language || '').toUpperCase() || '—';
+  const cast        = (show._credits?.cast || []).slice(0, 12);
+  const IMG_FACE    = 'https://image.tmdb.org/t/p/w185';
+
+  const infoItems = [
+    ['Network',  network],
+    ['Status',   show.status || '—'],
+    ['Language', langDisplay],
+  ];
+
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-      ${[['Network', network], ['Status', show.status||'—'], ['Type', show.type||'—'], ['Language', (show.original_language||'').toUpperCase()||'—']
-        ].map(([k, v]) => `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+      ${infoItems.map(([k, v]) => `
         <div style="background:var(--bg-elevated);border-radius:10px;padding:12px 14px">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">${k}</div>
           <div style="font-size:14px;font-weight:500">${escHtml(v)}</div>
         </div>`).join('')}
     </div>
-    <div style="background:var(--bg-elevated);border-radius:10px;padding:14px">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Overview</div>
-      <div style="font-size:14px;line-height:1.7;color:var(--text-secondary)">${escHtml(show.overview || 'No description available.')}</div>
-    </div>`;
+    ${cast.length ? `
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:0.5px">Cast</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        ${cast.map(p => {
+          const photo   = p.profile_path ? `${IMG_FACE}${p.profile_path}` : null;
+          const initial = escHtml((p.name || '?')[0].toUpperCase());
+          return `<div style="text-align:center;width:60px">
+            <div style="width:60px;height:60px;border-radius:50%;overflow:hidden;background:var(--bg-elevated);margin-bottom:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+              ${photo
+                ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" decoding="async">`
+                : `<span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text-muted)">${initial}</span>`}
+            </div>
+            <div style="font-size:10px;color:var(--text-secondary);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(p.name)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}`;
 }
 
 function toggleSeason(id, snum) {
@@ -1028,7 +1066,7 @@ async function renderUserProfileView(uid) {
     const disp = _isUpToDate(s) ? 'uptodate' : s.status;
     const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
     const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
-    return `<div class="up-show-card" title="${escHtml(s.name)}">
+    return `<div class="up-show-card" onclick="openShow(${s.id})" style="cursor:pointer">
       <div style="position:relative">
         <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
         ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
@@ -1042,7 +1080,7 @@ async function renderUserProfileView(uid) {
     const show = fid ? shows.find(s => String(s.id) === String(fid)) : null;
     if (show) {
       const img = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
-      return `<div class="fav-card fav-filled">
+      return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
         <img src="${img}" class="fav-poster" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'">
         <div class="fav-overlay"><div class="fav-title">${escHtml(show.name)}</div></div>
       </div>`;
@@ -1217,7 +1255,7 @@ function setUserProfileFilter(uid, f) {
     const disp = isUpToDate(s) ? 'uptodate' : s.status;
     const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
     const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
-    return `<div class="up-show-card" title="${escHtml(s.name)}">
+    return `<div class="up-show-card" onclick="openShow(${s.id})" style="cursor:pointer">
       <div style="position:relative">
         <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
         ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
@@ -1318,10 +1356,11 @@ function renderSettings() {
 
       ${joinDate ? `<div class="settings-row" style="border-bottom:none;padding-bottom:0">
         <div class="settings-row-label">
-          <div class="settings-row-title">Member Since</div>
-          <div class="settings-row-desc">${joinDate}</div>
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+            <div class="settings-row-title" style="margin-bottom:0">Member Since</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${joinDate}</div>
+          </div>
         </div>
-        <div class="settings-row-control"></div>
       </div>` : ''}
     </div>
 
