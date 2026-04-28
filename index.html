@@ -24,20 +24,26 @@
       <div class="nav-item" data-view="watchlist" onclick="navigate('watchlist')">
         <span class="icon">＋</span> Watchlist
       </div>
+      <div class="nav-item" data-view="stopped" onclick="navigate('stopped')">
+        <span class="icon">⏸</span> Stopped
+      </div>
+      <div class="nav-item" data-view="watchlater" onclick="navigate('watchlater')">
+        <span class="icon">◷</span> Watch Later
+      </div>
       <div class="nav-item" data-view="completed" onclick="navigate('completed')">
         <span class="icon">≡</span> All
+      </div>
+      <div class="nav-item" data-view="uptodate" onclick="navigate('uptodate')">
+        <span class="icon">⟳</span> Up to Date
+      </div>
+      <div class="nav-item" data-view="finished" onclick="navigate('finished')">
+        <span class="icon">⏹</span> Finished
       </div>
       <div class="nav-item" data-view="activity" onclick="navigate('activity')">
         <span class="icon">⏱</span> Activity
       </div>
       <div class="nav-item" data-view="profile" onclick="navigate('profile')">
         <span class="icon">◉</span> My Profile
-      </div>
-      <div class="nav-item" data-view="people" onclick="navigate('people')">
-        <span class="icon">♟</span> People
-      </div>
-      <div class="nav-item" data-view="settings" onclick="navigate('settings')">
-        <span class="icon">⚙</span> Settings
       </div>
     </div>
     <div class="nav-section">
@@ -73,32 +79,30 @@
 <!-- TOAST -->
 <div id="toast"><span class="toast-icon">✓</span><span id="toast-msg"></span></div>
 
-<!-- CHANGE USERNAME MODAL -->
-<div class="modal-overlay" id="change-username-modal" style="display:none" onclick="if(event.target===this)hideChangeUsernameModal()">
+<!-- USERNAME SETUP MODAL -->
+<div class="modal-overlay" id="username-modal" style="display:none">
   <div class="modal" style="max-width:400px">
     <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
       <div class="modal-info">
-        <div class="modal-title" style="font-size:22px">Change Username</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Pick a new unique username for your profile.</div>
+        <div class="modal-title" style="font-size:22px">Pick a Username</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">This is how you'll appear on Screenlog. You can't change it later.</div>
       </div>
-      <button class="modal-close" onclick="hideChangeUsernameModal()">×</button>
     </div>
     <div class="modal-body" style="padding-top:8px">
       <div style="margin-bottom:16px">
         <div style="position:relative">
           <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none">@</span>
-          <input type="text" class="input-field" id="change-username-input"
-            placeholder="newusername"
+          <input type="text" class="input-field" id="username-input"
+            placeholder="yourname"
             maxlength="20"
             style="padding-left:30px"
             oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"
-            onkeydown="if(event.key==='Enter')submitChangeUsername()"
           >
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Letters, numbers and underscores only. 3–20 characters.</div>
-        <div id="change-username-error" style="font-size:13px;color:var(--red);margin-top:8px;min-height:18px"></div>
+        <div id="username-error" style="font-size:13px;color:var(--red);margin-top:8px;min-height:18px"></div>
       </div>
-      <button class="btn primary" id="change-username-btn" onclick="submitChangeUsername()" style="width:100%;justify-content:center">Save Username</button>
+      <button class="btn primary" id="username-btn" onclick="submitUsername()" style="width:100%;justify-content:center">Save Username</button>
     </div>
   </div>
 </div>
@@ -174,92 +178,6 @@
   </div>
 </div>
 
-<!-- CHANGE EMAIL MODAL -->
-<div class="modal-overlay" id="change-email-modal" style="display:none" onclick="if(event.target===this)hideChangeEmailModal()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
-      <div class="modal-info">
-        <div class="modal-title" style="font-size:22px">Change Email</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Enter your current password to confirm this change.</div>
-      </div>
-      <button class="modal-close" onclick="hideChangeEmailModal()">×</button>
-    </div>
-    <div class="modal-body" style="padding-top:8px">
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">New Email Address</label>
-        <input type="email" class="input-field" id="ce-new-email" placeholder="newaddress@example.com"
-          onkeydown="if(event.key==='Enter')submitChangeEmail()">
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Current Password</label>
-        <input type="password" class="input-field" id="ce-password" placeholder="Your current password"
-          onkeydown="if(event.key==='Enter')submitChangeEmail()">
-      </div>
-      <div id="ce-error" style="font-size:13px;color:var(--red);min-height:18px;margin-bottom:12px"></div>
-      <button class="btn primary" id="ce-btn" onclick="submitChangeEmail()" style="width:100%;justify-content:center">Update Email</button>
-    </div>
-  </div>
-</div>
-
-<!-- CHANGE PASSWORD MODAL -->
-<div class="modal-overlay" id="change-password-modal" style="display:none" onclick="if(event.target===this)hideChangePasswordModal()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
-      <div class="modal-info">
-        <div class="modal-title" style="font-size:22px">Change Password</div>
-        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Enter your current password to set a new one.</div>
-      </div>
-      <button class="modal-close" onclick="hideChangePasswordModal()">×</button>
-    </div>
-    <div class="modal-body" style="padding-top:8px">
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Current Password</label>
-        <input type="password" class="input-field" id="cp-current" placeholder="••••••••"
-          onkeydown="if(event.key==='Enter')submitChangePassword()">
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">New Password</label>
-        <input type="password" class="input-field" id="cp-new" placeholder="At least 6 characters"
-          onkeydown="if(event.key==='Enter')submitChangePassword()">
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Confirm New Password</label>
-        <input type="password" class="input-field" id="cp-confirm" placeholder="Repeat new password"
-          onkeydown="if(event.key==='Enter')submitChangePassword()">
-      </div>
-      <div id="cp-error" style="font-size:13px;color:var(--red);min-height:18px;margin-bottom:12px"></div>
-      <button class="btn primary" id="cp-btn" onclick="submitChangePassword()" style="width:100%;justify-content:center">Update Password</button>
-    </div>
-  </div>
-</div>
-
-<!-- DELETE ACCOUNT MODAL -->
-<div class="modal-overlay" id="delete-account-modal" style="display:none" onclick="if(event.target===this)hideDeleteAccountModal()">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header" style="border-bottom:none;padding-bottom:0">
-      <div class="modal-info">
-        <div class="modal-title" style="font-size:20px;color:var(--red)">Delete Account?</div>
-      </div>
-      <button class="modal-close" onclick="hideDeleteAccountModal()">×</button>
-    </div>
-    <div class="modal-body" style="padding-top:10px">
-      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
-        This permanently deletes your account, all shows, history, and public profile. This <strong>cannot</strong> be undone.
-      </p>
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">Enter your password to confirm</label>
-        <input type="password" class="input-field" id="da-password" placeholder="Your current password"
-          onkeydown="if(event.key==='Enter')submitDeleteAccount()">
-      </div>
-      <div id="da-error" style="font-size:13px;color:var(--red);min-height:18px;margin-bottom:12px"></div>
-      <div style="display:flex;gap:10px">
-        <button class="btn" onclick="hideDeleteAccountModal()" style="flex:1">Cancel</button>
-        <button class="btn danger" id="da-btn" onclick="submitDeleteAccount()" style="flex:1;background:rgba(255,91,91,0.12)">Delete My Account</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -272,7 +190,6 @@
 <script src="js/sync.js"></script>
 <script src="js/api.js"></script>
 <script src="js/render.js"></script>
-<script src="js/social.js"></script>
 <script src="js/app.js"></script>
 <script src="js/auth.js"></script>
 </body>

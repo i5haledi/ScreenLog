@@ -149,7 +149,6 @@ function _localLoad() {
 function save() {
   _localSave();
   syncSave();
-  if (typeof schedulePublicSync === 'function') schedulePublicSync();
 }
 
 function load() { _localLoad(); }

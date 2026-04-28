@@ -120,6 +120,7 @@ function checkUpToDate(showId) {
   });
   if (airedTotal > 0 && airedWatched >= airedTotal) {
     state.shows[showId].status = 'completed';
+    logActivity('done', showId, show.name, show.poster_path, '');
     save();
     syncSaveShow(showId);
     render();

@@ -24,17 +24,6 @@
         <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
       </div>
       <div class="form-group">
-        <label>Username</label>
-        <div style="position:relative">
-          <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.35);font-size:15px;pointer-events:none">@</span>
-          <input type="text" id="username" placeholder="yourname" maxlength="20"
-            autocomplete="username"
-            oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"
-            style="padding-left:28px">
-        </div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:5px">Letters, numbers and underscores. 3–20 characters.</div>
-      </div>
-      <div class="form-group">
         <label>Password</label>
         <input type="password" id="password" placeholder="At least 6 characters" autocomplete="new-password">
       </div>
@@ -77,43 +66,19 @@
   }
 
   async function handleSignup() {
-    const email    = document.getElementById('email').value.trim();
-    const username = document.getElementById('username').value.trim();
-    const pass     = document.getElementById('password').value;
-    const confirm  = document.getElementById('confirm-password').value;
-
+    const email   = document.getElementById('email').value.trim();
+    const pass    = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm-password').value;
     showError('');
-    if (!email || !username || !pass || !confirm) { showError('Please fill in all fields.'); return; }
-    if (username.length < 3)  { showError('Username must be at least 3 characters.'); return; }
-    if (username.length > 20) { showError('Username must be 20 characters or less.'); return; }
-    if (pass.length < 6)      { showError('Password must be at least 6 characters.'); return; }
-    if (pass !== confirm)     { showError('Passwords do not match.'); return; }
-
+    if (!email || !pass || !confirm) { showError('Please fill in all fields.'); return; }
+    if (pass.length < 6)             { showError('Password must be at least 6 characters.'); return; }
+    if (pass !== confirm)            { showError('Passwords do not match.'); return; }
     setLoading(true);
     try {
-      // Pre-check username availability
-      const existing = await db.collection('usernames').doc(username).get();
-      if (existing.exists) { showError('This username is already taken. Please choose another.'); setLoading(false); return; }
-
-      // Create Firebase Auth account
-      const cred = await auth.createUserWithEmailAndPassword(email, pass);
-      const uid  = cred.user.uid;
-
-      // Atomically claim username in Firestore
-      await db.runTransaction(async tx => {
-        const snap = await tx.get(db.collection('usernames').doc(username));
-        if (snap.exists) throw new Error('taken');
-        tx.set(db.collection('usernames').doc(username), { uid, email });
-        tx.set(db.collection('users').doc(uid), { username, email }, { merge: true });
-      });
-
+      await auth.createUserWithEmailAndPassword(email, pass);
       window.location.href = 'index.html';
     } catch(e) {
-      if (e.message === 'taken') {
-        showError('This username was just taken. Please choose another.');
-      } else {
-        showError(friendlyError(e.code, e.message));
-      }
+      showError(friendlyError(e.code, e.message));
       setLoading(false);
     }
   }

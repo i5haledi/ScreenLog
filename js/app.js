@@ -1,20 +1,14 @@
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 function navigate(view) {
-  // Removed tabs redirect to the All view with the appropriate filter pre-set
-  const filterRedirects = { stopped: 'stopped', watchlater: 'watchlater', uptodate: 'uptodate', finished: 'finished' };
-  if (filterRedirects[view]) {
-    completedFilter = filterRedirects[view];
-    view = 'completed';
-  }
-
   state.view = view;
   window._showPage = 40;
   document.querySelectorAll('.nav-item').forEach(el =>
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
-    completed: 'All', activity: 'Activity', profile: 'My Profile', people: 'People',
-    settings: 'Settings'
+    watchlater: 'Watch Later', stopped: 'Stopped',
+    completed: 'All', uptodate: 'Up to Date', finished: 'Finished',
+    activity: 'Activity', profile: 'My Profile'
   };
   document.getElementById('view-title').textContent = titles[view] || view;
   closeSidebar();
@@ -45,6 +39,8 @@ function setStatus(id, status) {
       });
     });
     logActivity('done', id, show.name, show.poster_path, '');
+  } else if (status === 'watching') {
+    logActivity('add', id, show.name, show.poster_path, '');
   } else if (status === 'watchlist') {
     logActivity('wl', id, show.name, show.poster_path, '');
   }
@@ -97,29 +93,6 @@ function markSeasonWatched(showId, snum, markAll) {
   syncSaveShow(showId); // FIX: sync the bulk episode change
   renderEpisodesTab(document.getElementById('m-tab-content'));
   renderModalActions(showId);
-}
-
-// Mark all episodes as watched for a completed show (e.g. after import or first open)
-function ensureAllEpsMarked(showId) {
-  const d = state.shows[showId];
-  if (!d || d.status !== 'completed') return;
-  const seasonsData = state.seasons[showId];
-  if (!seasonsData || !Object.keys(seasonsData).length) return;
-  if (!d.watched) d.watched = {};
-  let changed = false;
-  Object.entries(seasonsData).forEach(([snum, sData]) => {
-    (sData.episodes || []).forEach(ep => {
-      const key = `${snum}_${ep.episode_number}`;
-      if (!d.watched[key]) {
-        d.watched[key] = true;
-        changed = true;
-      }
-    });
-  });
-  if (changed) {
-    save();
-    syncSaveShow(showId);
-  }
 }
 
 // ─── QUICK MARK (CONFIRM FLOW) ────────────────────────────────────────────────
@@ -530,8 +503,7 @@ function handlePicUpload(event) {
       // FIX: safe fallback if both username and email are null
       const label = currentUsername || currentUser?.email || 'U';
       setUserDisplay(label[0].toUpperCase(), label);
-      if (state.view === 'settings') renderSettings();
-      else renderProfile();
+      renderProfile();
       showToast('Profile photo updated');
     };
     img.src = e.target.result;
@@ -565,45 +537,6 @@ function removeFavorite(slot) {
   state.favorites[slot] = null;
   save();
   renderProfile();
-}
-
-// ─── PEOPLE / SOCIAL ─────────────────────────────────────────────────────────
-function viewUser(uid) {
-  state.view = 'user:' + uid;
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelector('.nav-item[data-view="people"]')?.classList.add('active');
-  const cached = window._upCache?.[uid];
-  document.getElementById('view-title').textContent = cached?.username ? '@' + cached.username : 'Profile';
-  closeSidebar();
-  render();
-}
-
-let _peopleSearchTimer = null;
-function onPeopleSearch(query) {
-  clearTimeout(_peopleSearchTimer);
-  const resultsEl  = document.getElementById('people-results');
-  const discoverEl = document.getElementById('people-discover');
-  if (!resultsEl) return;
-
-  if (!query || query.length < 2) {
-    resultsEl.innerHTML = '';
-    if (discoverEl) discoverEl.style.display = '';
-    return;
-  }
-
-  if (discoverEl) discoverEl.style.display = 'none';
-  resultsEl.innerHTML = `<div style="text-align:center;padding:20px"><div class="spinner"></div></div>`;
-
-  _peopleSearchTimer = setTimeout(async () => {
-    const results = await searchUsers(query);
-    const el2 = document.getElementById('people-results');
-    if (!el2) return;
-    if (!results.length) {
-      el2.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:16px 0">No users found for "<strong>${escHtml(query)}</strong>"</div>`;
-      return;
-    }
-    el2.innerHTML = `<div class="people-grid">${results.map(r => renderUserCard(r)).join('')}</div>`;
-  }, 400);
 }
 
 // ─── MOBILE SIDEBAR ───────────────────────────────────────────────────────────
