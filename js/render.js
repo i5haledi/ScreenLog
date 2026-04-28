@@ -6,13 +6,16 @@ function render() {
   if      (v === 'home')     renderHome();
   else if (v === 'watching') renderShelfView('watching', 'Currently Watching');
   else if (v === 'watchlist') renderShelfView('watchlist', 'Watchlist');
-  else if (v === 'watchlater') renderShelfView('watchlater', 'Watch Later');
-  else if (v === 'stopped')  renderShelfView('stopped', 'Stopped');
-  else if (v === 'completed') renderShelfView('completed', 'All');
-  else if (v === 'uptodate') renderUpToDate();
-  else if (v === 'finished') renderFinished();
+  else if (v === 'watchlater') { completedFilter = 'watchlater'; renderShelfView('completed', 'All'); }
+  else if (v === 'stopped')    { completedFilter = 'stopped';    renderShelfView('completed', 'All'); }
+  else if (v === 'completed')  renderShelfView('completed', 'All');
+  else if (v === 'uptodate')   { completedFilter = 'uptodate';   renderShelfView('completed', 'All'); }
+  else if (v === 'finished')   { completedFilter = 'finished';   renderShelfView('completed', 'All'); }
   else if (v === 'activity') renderActivity();
   else if (v === 'profile')  renderProfile();
+  else if (v === 'people')   renderPeople();
+  else if (v === 'settings') renderSettings();
+  else if (v.startsWith('user:')) renderUserProfileView(v.split(':').slice(1).join(':'));
   else if (v.startsWith('list:')) renderCustomList(v.split(':')[1]);
   renderSidebarLists();
 }
@@ -127,11 +130,11 @@ function renderShelfView(status, title) {
     const byFilter = {
       all:        allShows,
       watching:   allShows.filter(d => d.status === 'watching'),
-      finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
-      uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
-      stopped:    allShows.filter(d => d.status === 'stopped'),
-      watchlater: allShows.filter(d => d.status === 'watchlater'),
       watchlist:  allShows.filter(d => d.status === 'watchlist'),
+      watchlater: allShows.filter(d => d.status === 'watchlater'),
+      stopped:    allShows.filter(d => d.status === 'stopped'),
+      uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
+      finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
     };
     const filtered = byFilter[completedFilter] || allShows;
 
@@ -150,9 +153,9 @@ function renderShelfView(status, title) {
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        ${['all','watching','uptodate','finished','watchlist'].map(f => `
+        ${['all','watching','watchlist','watchlater','stopped','uptodate','finished'].map(f => `
           <button class="filter-btn${completedFilter === f ? ' active' : ''}" onclick="setCompletedFilter('${f}')">
-            ${{ all:'All', watching:'Watching', finished:'Finished', uptodate:'Up to Date', watchlist:'Watchlist' }[f]}
+            ${{ all:'All', watching:'Watching', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped', uptodate:'Up to Date', finished:'Finished' }[f]}
             <span class="filter-count">${byFilter[f].length}</span>
           </button>`).join('')}
       </div>`;
@@ -302,7 +305,8 @@ function showCard(show, status) {
                    : status === 'watchlater' ? '#4ecdc4'
                    : status === 'stopped'    ? '#ff6b6b'
                    : '#7c6aff';
-  const img        = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;  const isSelected = window._selectedShows?.has(String(show.id));
+  const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+  const isSelected = window._selectedShows?.has(String(show.id));
   const inSelectMode = !!window._selectMode;
 
   return `
@@ -346,7 +350,7 @@ function renderActivity() {
   const iconMap    = { ep: '▶', done: '✓', add: '＋', list: '◈', wl: '◈', remove: '✕' };
   const typeLabels = {
     ep:     a => `Watched <span class="show-name">${escHtml(a.detail)}</span> · <strong>${escHtml(a.showName)}</strong>`,
-    done:   a => `Marked <strong>${escHtml(a.showName)}</strong> as <span style="color:var(--green);font-weight:600">Completed</span>`,
+    done:   a => `Marked <strong>${escHtml(a.showName)}</strong> as <span style="color:var(--green);font-weight:600">watched</span>`,
     add:    a => `Started watching <strong>${escHtml(a.showName)}</strong>`,
     wl:     a => `Added <strong>${escHtml(a.showName)}</strong> to Watchlist`,
     list:   a => `Added <strong>${escHtml(a.showName)}</strong> to list <span style="color:var(--accent3)">${escHtml(a.detail)}</span>`,
@@ -374,13 +378,17 @@ function renderActivity() {
   let html = `<div class="activity-feed">`;
   Object.entries(groups).forEach(([dayStr, items]) => {
     html += `<div class="activity-day-group"><div class="activity-day-label">${dayLabel(dayStr)}</div>`;
-    items.forEach(a => {
+    items.forEach((a, idx) => {
       const thumb   = a.posterId ? `${IMG_SM}${a.posterId}` : FALLBACK_IMG;
       const labelFn = typeLabels[a.type];
       const label   = labelFn ? labelFn(a) : escHtml(a.showName);
+      const isLast  = idx === items.length - 1;
       html += `
         <div class="activity-item" onclick="a_click(${a.showId})">
-          <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+          <div class="activity-tl-node">
+            <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+            ${!isLast ? '<div class="activity-tl-line"></div>' : ''}
+          </div>
           <div class="activity-body">
             <div class="activity-text">${label}</div>
             <div class="activity-time">${timeStr(a.ts)}</div>
@@ -429,13 +437,15 @@ async function openShow(id) {
 
   // ── Fetch fresh data + IMDb ID in background ──────────────────────────
   try {
-    const [fresh, extIds] = await Promise.all([
+    const [fresh, extIds, credits] = await Promise.all([
       fetchShow(id),
-      tmdbFetch(`${TMDB}/tv/${id}/external_ids`).then(r => r.json()).catch(() => ({}))
+      tmdbFetch(`${TMDB}/tv/${id}/external_ids`).then(r => r.json()).catch(() => ({})),
+      tmdbFetch(`${TMDB}/tv/${id}/credits`).then(r => r.json()).catch(() => ({}))
     ]);
     if (fresh.id) {
       show = fresh;
       show._imdb_id = extIds.imdb_id || null;
+      show._credits = credits;
       if (state.shows[id]) { state.shows[id].show = show; save(); }
       currentShow = show;
       _populateModal(show, id);
@@ -448,6 +458,7 @@ async function openShow(id) {
   window.openSeasons[String(id)] = null;
 
   if (!state.seasons[id]) await loadSeasons(id, show);
+  if (state.shows[id]?.status === 'completed') ensureAllEpsMarked(id);
   checkUpToDate(id);
   renderModalTab();
 }
@@ -469,7 +480,6 @@ function _populateModal(show, id) {
     : '';
 
   document.getElementById('m-poster').src = img;
-  document.getElementById('m-title').textContent = show.name || 'Unknown';
   document.getElementById('m-meta').innerHTML = `
     <span>${[seas].filter(Boolean).join(' · ')}${eps}</span>
     <span style="display:inline-flex;align-items:center;gap:8px;margin-left:6px">
@@ -479,12 +489,15 @@ function _populateModal(show, id) {
   const startYear = (show.first_air_date || '').slice(0, 4);
   const endYear   = show.last_air_date ? new Date(show.last_air_date).getFullYear() : null;
   const isEnded   = show.status === 'Ended' || show.status === 'Canceled';
-  const dateRange = startYear
-    ? `<span class="date-range-tag">${startYear} – ${isEnded && endYear ? endYear : 'Present'}</span>`
+  const dateLabel = startYear
+    ? `${startYear}${isEnded && endYear ? `–${endYear}` : '–Present'}`
     : '';
 
+  const titleEl = document.getElementById('m-title');
+  titleEl.innerHTML = `${escHtml(show.name || 'Unknown')}${dateLabel ? `<span class="date-range-tag" style="vertical-align:middle;margin-left:10px">${dateLabel}</span>` : ''}`;
+
   document.getElementById('m-genres').innerHTML =
-    (show.genres || []).map(g => `<span class="genre-tag">${g.name}</span>`).join('') + dateRange;
+    (show.genres || []).map(g => `<span class="genre-tag">${g.name}</span>`).join('');
   document.getElementById('m-overview').textContent = show.overview || '';
   document.getElementById('m-tabs').innerHTML = `
     <div class="tab active" onclick="switchTab('episodes')">Episodes</div>
@@ -599,22 +612,55 @@ function renderEpisodesTab(el) {
 }
 
 function renderAboutTab(el) {
-  const show   = currentShow;
+  const show = currentShow;
   if (!show) return;
-  const network = (show.networks || []).map(n => n.name).join(', ') || '—';
+
+  const langMap = {
+    en:'English', es:'Spanish', fr:'French', de:'German', it:'Italian',
+    ja:'Japanese', ko:'Korean', zh:'Chinese', pt:'Portuguese', ru:'Russian',
+    ar:'Arabic', hi:'Hindi', nl:'Dutch', sv:'Swedish', tr:'Turkish',
+    pl:'Polish', da:'Danish', fi:'Finnish', no:'Norwegian', cs:'Czech',
+    el:'Greek', ro:'Romanian', hu:'Hungarian', id:'Indonesian', th:'Thai',
+    he:'Hebrew', uk:'Ukrainian', vi:'Vietnamese', ms:'Malay'
+  };
+
+  const network     = (show.networks || []).map(n => n.name).join(', ') || '—';
+  const langDisplay = langMap[show.original_language] || (show.original_language || '').toUpperCase() || '—';
+  const cast        = (show._credits?.cast || []).slice(0, 12);
+  const IMG_FACE    = 'https://image.tmdb.org/t/p/w185';
+
+  const infoItems = [
+    ['Network',  network],
+    ['Status',   show.status || '—'],
+    ['Language', langDisplay],
+  ];
+
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-      ${[['Network', network], ['Status', show.status||'—'], ['Type', show.type||'—'], ['Language', (show.original_language||'').toUpperCase()||'—']
-        ].map(([k, v]) => `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+      ${infoItems.map(([k, v]) => `
         <div style="background:var(--bg-elevated);border-radius:10px;padding:12px 14px">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">${k}</div>
           <div style="font-size:14px;font-weight:500">${escHtml(v)}</div>
         </div>`).join('')}
     </div>
-    <div style="background:var(--bg-elevated);border-radius:10px;padding:14px">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Overview</div>
-      <div style="font-size:14px;line-height:1.7;color:var(--text-secondary)">${escHtml(show.overview || 'No description available.')}</div>
-    </div>`;
+    ${cast.length ? `
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:0.5px">Cast</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        ${cast.map(p => {
+          const photo   = p.profile_path ? `${IMG_FACE}${p.profile_path}` : null;
+          const initial = escHtml((p.name || '?')[0].toUpperCase());
+          return `<div style="text-align:center;width:60px">
+            <div style="width:60px;height:60px;border-radius:50%;overflow:hidden;background:var(--bg-elevated);margin-bottom:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center">
+              ${photo
+                ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" decoding="async">`
+                : `<span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text-muted)">${initial}</span>`}
+            </div>
+            <div style="font-size:10px;color:var(--text-secondary);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(p.name)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}`;
 }
 
 function toggleSeason(id, snum) {
@@ -641,14 +687,26 @@ function renderProfile() {
     months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString('en-US',{month:'short'}), eps: 0, mins: 0 });
   }
 
-  // FIX: Count total watched episodes directly from state (accurate, not capped like activityLog).
-  // activityLog is used only for time estimates and monthly chart data.
+  // Total watched episodes from state (accurate, includes bulk-marked shows)
   let totalEpsWatched = 0;
   Object.values(state.shows).forEach(d => {
     totalEpsWatched += Object.values(d.watched || {}).filter(Boolean).length;
   });
 
-  let totalMinutes = 0;
+  // Accurate hours: sum runtime of every watched episode from loaded season data
+  let totalMinsAllWatched = 0;
+  Object.entries(state.shows).forEach(([showId, d]) => {
+    Object.entries(d.watched || {}).forEach(([key, watched]) => {
+      if (!watched) return;
+      const parts = key.split('_');
+      const ep = state.seasons[showId]?.[parts[0]]?.episodes?.find(e => e.episode_number === parseInt(parts[1]));
+      if (ep?.runtime) totalMinsAllWatched += ep.runtime;
+    });
+  });
+
+  // Monthly chart data: only count individually logged 'ep' activity entries (has timestamps).
+  // Bulk-added shows (Mark Completed, Mark All Season) are excluded — they have no 'ep' log entries.
+  let totalMinsLog = 0;
   (state.activityLog || []).forEach(a => {
     if (a.type !== 'ep') return;
     const d      = new Date(a.ts);
@@ -661,9 +719,12 @@ function renderProfile() {
         runtime  = ep?.runtime || 0;
       }
     }
-    totalMinutes += runtime;
+    totalMinsLog += runtime;
     if (bucket) { bucket.eps++; bucket.mins += runtime; }
   });
+
+  // Total individually tracked episodes (matches what the monthly bars actually show)
+  const totalTrackedEps = (state.activityLog || []).filter(a => a.type === 'ep').length;
 
   function formatWatchTime(mins) {
     const hours   = Math.floor(mins / 60);
@@ -708,12 +769,7 @@ function renderProfile() {
   const joinDate = currentUser?.metadata?.creationTime
     ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month:'long', year:'numeric' }) : '';
   const profilePic = state.profilePic || null;
-
-  // Background blur from first favorite poster
-  const firstFav = (state.favorites||[]).find(id => state.shows[id]?.show?.backdrop_path);
-  const heroBg   = firstFav && state.shows[firstFav]?.show?.backdrop_path
-    ? `https://image.tmdb.org/t/p/w1280${state.shows[firstFav].show.backdrop_path}`
-    : null;
+  const bannerColor = state.profileBannerColor || '#0d0f1a';
 
   const favsHtml = [0,1,2,3].map(i => {
     const fid  = (state.favorites||[])[i];
@@ -736,11 +792,15 @@ function renderProfile() {
 
   c.innerHTML = `
   <input type="file" id="pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event)">
-  <input type="file" id="tvtime-csv-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
+  <input type="color" id="banner-color-input" value="${bannerColor}" style="display:none" oninput="setBannerColor(this.value)">
 
   <!-- ── HERO ── -->
-  <div class="prof2-hero" style="${heroBg ? `background-image:url('${heroBg}')` : ''}">
+  <div class="prof2-hero" style="background:${bannerColor}">
     <div class="prof2-hero-overlay"></div>
+    <button class="prof2-banner-color-btn" onclick="document.getElementById('banner-color-input').click()" title="Change banner color">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 12c0 4-3 7-7 7S3 16 3 12 6 5 10 5"/><path d="M21 3L9 15"/></svg>
+      Color
+    </button>
     <div class="prof2-hero-inner">
 
       <!-- Avatar -->
@@ -760,14 +820,6 @@ function renderProfile() {
         <div class="prof2-username">@${escHtml(uname)}</div>
         <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
         ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="tvtime-import-btn" onclick="document.getElementById('tvtime-csv-input').click()">
-            Import from TV Time
-          </button>
-          <button class="tvtime-import-btn" style="border-color:rgba(255,91,91,0.35);color:rgba(255,100,100,0.8)" onclick="confirmClearLibrary()">
-            Clear Library
-          </button>
-        </div>
       </div>
 
       <!-- Quick stats in hero -->
@@ -776,7 +828,7 @@ function renderProfile() {
         <div class="prof2-hstat-div"></div>
         <div class="prof2-hstat"><div class="prof2-hstat-num">${totalEpsWatched}</div><div class="prof2-hstat-label">Episodes</div></div>
         <div class="prof2-hstat-div"></div>
-        <div class="prof2-hstat"><div class="prof2-hstat-num">${Math.round(totalMinutes/60)}</div><div class="prof2-hstat-label">Hours</div></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${Math.round(totalMinsAllWatched/60)}</div><div class="prof2-hstat-label">Hours</div></div>
       </div>
     </div>
   </div>
@@ -796,7 +848,7 @@ function renderProfile() {
       <!-- Time card -->
       <div class="prof2-card">
         <div class="prof2-card-label">Time Spent Watching</div>
-        <div class="prof-time-value" style="font-size:32px;margin-top:10px">${formatWatchTime(totalMinutes)}</div>
+        <div class="prof-time-value" style="font-size:32px;margin-top:10px">${formatWatchTime(totalMinsAllWatched)}</div>
       </div>
 
       <!-- Status breakdown -->
@@ -842,7 +894,7 @@ function renderProfile() {
             <div class="prof2-card-label">Episodes per Month</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#7c6aff;letter-spacing:1px">${totalEpsWatched}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#7c6aff;letter-spacing:1px">${totalTrackedEps}</div>
         </div>
         ${buildChart(epsData,'#7c6aff','grad-eps2')}
       </div>
@@ -853,7 +905,7 @@ function renderProfile() {
             <div class="prof2-card-label">Hours per Month</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
           </div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ecdc4;letter-spacing:1px">${Math.round(totalMinutes/60)} hrs</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ecdc4;letter-spacing:1px">${Math.round(totalMinsLog/60)} hrs</div>
         </div>
         ${buildChart(hrsData,'#4ecdc4','grad-hrs2')}
       </div>
@@ -882,5 +934,476 @@ function renderProfile() {
         </div>
       </div>
     </div>
+  </div>`;
+}
+
+// ─── PEOPLE ───────────────────────────────────────────────────────────────────
+async function renderPeople() {
+  if (!window._upCache) window._upCache = {};
+  const c = document.getElementById('content');
+  const followingList = Object.entries(_following);
+
+  let html = `
+    <div class="section-header" style="margin-bottom:16px">
+      <div class="section-title">People</div>
+    </div>
+    <div class="people-search-wrap">
+      <input type="text" class="input-field" id="people-search-input"
+        placeholder="Search by username…"
+        oninput="onPeopleSearch(this.value)"
+        autocomplete="off">
+    </div>
+    <div id="people-results"></div>`;
+
+  if (followingList.length > 0) {
+    html += `<div class="section-header" style="margin-top:28px;margin-bottom:12px">
+      <div class="section-title" style="font-size:15px">Following</div>
+      <span class="section-count">${followingList.length}</span>
+    </div>
+    <div class="people-grid">`;
+    followingList.forEach(([uid, info]) => {
+      html += renderUserCard({ uid, username: info.username, profilePic: info.profilePic });
+    });
+    html += `</div>`;
+  }
+
+  html += `
+    <div class="section-header" style="margin-top:28px;margin-bottom:12px">
+      <div class="section-title" style="font-size:15px">All Users</div>
+    </div>
+    <div id="people-discover">
+      <div style="text-align:center;padding:30px"><div class="spinner"></div></div>
+    </div>`;
+
+  c.innerHTML = html;
+  setTimeout(() => document.getElementById('people-search-input')?.focus(), 50);
+
+  const users = await loadDiscoverUsers();
+  const el = document.getElementById('people-discover');
+  if (!el) return;
+  if (!users.length) {
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:12px 0">No other users yet</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="people-grid">${users.map(u => renderUserCard(u)).join('')}</div>`;
+}
+
+function renderUserCard(user) {
+  if (!window._upCache) window._upCache = {};
+  window._upCache[user.uid] = Object.assign(window._upCache[user.uid] || {}, user);
+  const pic      = user.profilePic;
+  const initial  = (user.username || '?')[0].toUpperCase();
+  const stats    = user.stats || {};
+  const following = isFollowing(user.uid);
+  return `
+    <div class="people-card" onclick="viewUser('${user.uid}')">
+      <div class="people-avatar">
+        ${pic ? `<img src="${pic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span>${initial}</span>`}
+      </div>
+      <div class="people-info">
+        <div class="people-username">@${escHtml(user.username || '')}</div>
+        ${stats.totalShows ? `<div class="people-stats">${stats.totalShows} shows · ${stats.totalEps || 0} eps</div>` : ''}
+      </div>
+      <button class="people-follow-btn${following ? ' following' : ''}" data-uid="${user.uid}"
+        onclick="event.stopPropagation();toggleFollow('${user.uid}')">
+        ${following ? '✓ Following' : '+ Follow'}
+      </button>
+    </div>`;
+}
+
+async function renderUserProfileView(uid) {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div style="text-align:center;padding:80px"><div class="spinner"></div></div>`;
+
+  if (!window._upCache) window._upCache = {};
+  let profile = window._upCache[uid];
+  if (!profile || !profile.shows) {
+    profile = await loadUserProfile(uid);
+    if (profile) window._upCache[uid] = profile;
+  }
+
+  if (!profile) {
+    c.innerHTML = `<div class="empty-state"><div class="big">◉</div><h3>Profile not found</h3><p>This user hasn't set up their public profile yet.</p></div>`;
+    return;
+  }
+
+  if (!window._upFilter) window._upFilter = {};
+  if (!window._upFilter[uid]) window._upFilter[uid] = 'all';
+
+  const following = isFollowing(uid);
+  const pic       = profile.profilePic;
+  const uname     = profile.username || uid;
+  const initial   = uname[0].toUpperCase();
+  const stats     = profile.stats || {};
+  const shows     = profile.shows || [];
+  const activity  = profile.activityLog || [];
+  const favorites = profile.favorites || [];
+
+  const iconMap = { ep:'▶', done:'✓', add:'＋', list:'◈', wl:'◈', remove:'✕' };
+  const typeLabels = {
+    ep:     a => `Watched ${escHtml(a.detail || '')} · <strong>${escHtml(a.showName || '')}</strong>`,
+    done:   a => `Marked <strong>${escHtml(a.showName || '')}</strong> as <span style="color:var(--green);font-weight:600">watched</span>`,
+    add:    a => `Started watching <strong>${escHtml(a.showName || '')}</strong>`,
+    wl:     a => `Added <strong>${escHtml(a.showName || '')}</strong> to Watchlist`,
+    list:   a => `Added <strong>${escHtml(a.showName || '')}</strong> to list ${escHtml(a.detail || '')}`,
+    remove: a => `Removed <strong>${escHtml(a.showName || '')}</strong>`,
+  };
+  const dateStr = ts => {
+    const d = new Date(ts);
+    const now = new Date(); now.setHours(0,0,0,0);
+    const yest = new Date(now); yest.setDate(now.getDate() - 1);
+    const day = new Date(d); day.setHours(0,0,0,0);
+    if (day.getTime() === now.getTime())  return 'Today';
+    if (day.getTime() === yest.getTime()) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  };
+
+  const _isUpToDate = s => s.status === 'completed' && s.show_status !== 'Ended' && s.show_status !== 'Canceled';
+  const _isFinished = s => s.status === 'completed' && (s.show_status === 'Ended' || s.show_status === 'Canceled');
+
+  const showMini = s => {
+    const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    const disp = _isUpToDate(s) ? 'uptodate' : s.status;
+    const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
+    const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
+    return `<div class="up-show-card" onclick="openShow(${s.id})" style="cursor:pointer">
+      <div style="position:relative">
+        <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
+        ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
+      </div>
+      <div class="up-show-name">${escHtml(s.name)}</div>
+    </div>`;
+  };
+
+  const favsHtml = [0,1,2,3].map(i => {
+    const fid  = favorites[i];
+    const show = fid ? shows.find(s => String(s.id) === String(fid)) : null;
+    if (show) {
+      const img = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+      return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
+        <img src="${img}" class="fav-poster" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'">
+        <div class="fav-overlay"><div class="fav-title">${escHtml(show.name)}</div></div>
+      </div>`;
+    }
+    return `<div class="fav-card fav-empty" style="cursor:default;pointer-events:none;opacity:0.4">
+      <div class="fav-plus" style="font-size:18px;color:var(--text-muted)">◻</div>
+    </div>`;
+  }).join('');
+
+  const filterCounts = {
+    all:        shows.length,
+    watching:   shows.filter(s => s.status === 'watching').length,
+    uptodate:   shows.filter(_isUpToDate).length,
+    completed:  shows.filter(_isFinished).length,
+    watchlist:  shows.filter(s => s.status === 'watchlist').length,
+    watchlater: shows.filter(s => s.status === 'watchlater').length,
+    stopped:    shows.filter(s => s.status === 'stopped').length,
+  };
+  const filterLabels = { all:'All', watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' };
+
+  const _filterShows = (arr, f) => {
+    if (f === 'all')       return arr;
+    if (f === 'uptodate')  return arr.filter(_isUpToDate);
+    if (f === 'completed') return arr.filter(_isFinished);
+    return arr.filter(s => s.status === f);
+  };
+
+  const renderShowGrid = f => {
+    const filtered = _filterShows(shows, f);
+    if (!filtered.length) return `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No shows here yet</div>`;
+    return `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMini).join('')}</div>`;
+  };
+
+  const currentFilter = window._upFilter[uid];
+
+  c.innerHTML = `
+  <!-- HERO (same layout as own profile) -->
+  <div class="prof2-hero">
+    <div class="prof2-hero-overlay"></div>
+    <div class="prof2-hero-inner">
+      <div class="prof2-avatar-wrap" style="cursor:default">
+        ${pic
+          ? `<img src="${pic}" class="prof2-avatar-img">`
+          : `<div class="prof2-avatar-initial">${initial}</div>`}
+      </div>
+      <div class="prof2-info">
+        <div class="prof2-username">@${escHtml(uname)}</div>
+        <div class="prof2-since" style="margin-top:4px">${stats.watching || 0} watching · ${stats.completed || 0} completed · ${stats.watchlist || 0} watchlist</div>
+        <div style="margin-top:14px">
+          <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
+            onclick="toggleFollow('${uid}')">
+            ${following ? '✓ Following' : '+ Follow'}
+          </button>
+        </div>
+      </div>
+      <div class="prof2-hero-stats">
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.totalShows || 0}</div><div class="prof2-hstat-label">Shows</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.totalEps || 0}</div><div class="prof2-hstat-label">Episodes</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.watching || 0}</div><div class="prof2-hstat-label">Watching</div></div>
+        <div class="prof2-hstat-div"></div>
+        <div class="prof2-hstat"><div class="prof2-hstat-num">${stats.completed || 0}</div><div class="prof2-hstat-label">Completed</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY (same two-column layout) -->
+  <div class="prof2-body">
+
+    <!-- Left: Favorites + Stats + Activity -->
+    <div class="prof2-left">
+      <div class="prof2-card">
+        <div class="prof2-card-label">Favorite Shows</div>
+        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
+      </div>
+
+      <!-- Status breakdown -->
+      <div class="prof2-card">
+        <div class="prof2-card-label">Library Stats</div>
+        <div class="prof2-breakdown">
+          ${[
+            ['Watching',   stats.watching  || 0, '#f4a534'],
+            ['Completed',  stats.completed || 0, '#7c6aff'],
+            ['Watchlist',  stats.watchlist || 0, '#4ecdc4'],
+          ].map(([label, count, color]) => {
+            const maxVal = Math.max(stats.watching||0, stats.completed||0, stats.watchlist||0, 1);
+            const pct = Math.round(count / maxVal * 100);
+            return `<div class="prof2-bk-row">
+              <div class="prof2-bk-label">
+                <span class="prof2-bk-dot" style="background:${color}"></span>${label}
+              </div>
+              <div class="prof2-bk-right">
+                <div class="prof2-bk-bar-wrap">
+                  <div class="prof2-bk-bar" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <span class="prof2-bk-num">${count}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="prof2-card">
+        <div class="prof2-card-label" style="margin-bottom:14px">Recent Activity</div>
+        ${activity.length ? `<div class="up-timeline">${activity.slice(0, 20).map((a, idx, arr) => {
+          const fn  = typeLabels[a.type];
+          const lbl = fn ? fn(a) : escHtml(a.showName || '');
+          const isLast = idx === arr.length - 1;
+          return `<div class="up-timeline-entry">
+            <div class="up-timeline-left">
+              <div class="activity-icon ${a.type}">${iconMap[a.type] || '·'}</div>
+              ${isLast ? '' : '<div class="up-timeline-bar"></div>'}
+            </div>
+            <div class="up-timeline-body">
+              <div class="up-activity-text">${lbl}</div>
+              <div class="up-activity-time">${dateStr(a.ts)}</div>
+            </div>
+          </div>`;
+        }).join('')}</div>` : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No activity yet</div>`}
+      </div>
+    </div>
+
+    <!-- Right: Full library with filters -->
+    <div class="prof2-right">
+      <div class="prof2-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="prof2-card-label">Library</div>
+          <span style="font-size:12px;color:var(--text-muted)">${shows.length} shows</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          ${['all','watching','uptodate','completed','watchlist','watchlater','stopped'].map(f => `
+            <button class="filter-btn${currentFilter === f ? ' active' : ''}"
+              style="font-size:11px;padding:4px 10px"
+              onclick="setUserProfileFilter('${uid}','${f}')">
+              ${filterLabels[f]}
+              <span class="filter-count">${filterCounts[f]}</span>
+            </button>`).join('')}
+        </div>
+        <div id="up-shows-grid-${uid}">
+          ${renderShowGrid(currentFilter)}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setUserProfileFilter(uid, f) {
+  if (!window._upFilter) window._upFilter = {};
+  window._upFilter[uid] = f;
+  const profile = window._upCache?.[uid];
+  const shows   = profile?.shows || [];
+
+  const isUpToDate = s => s.status === 'completed' && s.show_status !== 'Ended' && s.show_status !== 'Canceled';
+  const isFinished = s => s.status === 'completed' && (s.show_status === 'Ended' || s.show_status === 'Canceled');
+
+  const filtered = f === 'all' ? shows
+    : f === 'uptodate'  ? shows.filter(isUpToDate)
+    : f === 'completed' ? shows.filter(isFinished)
+    : shows.filter(s => s.status === f);
+
+  const grid = document.getElementById(`up-shows-grid-${uid}`);
+  if (!grid) return;
+
+  document.querySelectorAll(`.filter-btn[onclick*="'${uid}'"]`).forEach(btn => {
+    const m = btn.getAttribute('onclick').match(/'([^']+)'\)$/);
+    btn.classList.toggle('active', m && m[1] === f);
+  });
+
+  const showMiniLocal = s => {
+    const img  = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+    const disp = isUpToDate(s) ? 'uptodate' : s.status;
+    const badgeColor = { watching:'#f4a534', uptodate:'#4caf87', completed:'#7c6aff', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#ff6b6b' }[disp] || '#888';
+    const badgeLabel = { watching:'Watching', uptodate:'Up to Date', completed:'Finished', watchlist:'Watchlist', watchlater:'Watch Later', stopped:'Stopped' }[disp] || '';
+    return `<div class="up-show-card" onclick="openShow(${s.id})" style="cursor:pointer">
+      <div style="position:relative">
+        <img src="${img}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--border)">
+        ${badgeLabel ? `<div style="position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:${badgeColor};text-shadow:0 1px 3px rgba(0,0,0,0.8)">${badgeLabel}</div>` : ''}
+      </div>
+      <div class="up-show-name">${escHtml(s.name)}</div>
+    </div>`;
+  };
+
+  if (!filtered.length) {
+    grid.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:16px 0">No shows here yet</div>`;
+  } else {
+    grid.innerHTML = `<div class="up-shows-grid" style="grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px">${filtered.map(showMiniLocal).join('')}</div>`;
+  }
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function renderSettings() {
+  const c         = document.getElementById('content');
+  const uname     = currentUsername || '';
+  const email     = currentUser?.email || '';
+  const profilePic = state.profilePic || null;
+  const initial   = (uname || email || 'U')[0].toUpperCase();
+  const joinDate  = currentUser?.metadata?.creationTime
+    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  c.innerHTML = `
+  <input type="file" id="settings-pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event);renderSettings()">
+
+  <div class="settings-page">
+
+    <!-- Profile section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Profile</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Profile Photo</div>
+          <div class="settings-row-desc">Shown on your profile and activity feed</div>
+        </div>
+        <div class="settings-row-control" style="gap:14px;align-items:center">
+          <div class="settings-avatar-preview" onclick="document.getElementById('settings-pic-input').click()" title="Change photo">
+            ${profilePic
+              ? `<img src="${profilePic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
+              : `<span style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--accent)">${initial}</span>`}
+            <div class="settings-avatar-edit-overlay">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+          </div>
+          <button class="btn" onclick="document.getElementById('settings-pic-input').click()">Change Photo</button>
+          ${profilePic ? `<button class="btn danger" onclick="removeProfilePic()" style="font-size:12px">Remove</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Account section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Account</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Username</div>
+          <div class="settings-row-desc">Your public @handle — must be unique</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap" style="width:200px">
+            <span class="settings-field-prefix">@</span>
+            <div class="settings-field-value">${escHtml(uname) || '<span style="color:var(--text-muted)">Not set</span>'}</div>
+          </div>
+          <button class="btn" onclick="showChangeUsernameModal()">Change Username</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Email Address</div>
+          <div class="settings-row-desc">Used to sign in</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap" style="width:200px">
+            <div class="settings-field-value">${escHtml(email)}</div>
+          </div>
+          <button class="btn" onclick="showChangeEmailModal()">Change Email</button>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Password</div>
+          <div class="settings-row-desc">Update your login password</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="settings-field-wrap">
+            <div class="settings-field-value" style="letter-spacing:3px;color:var(--text-muted)">••••••••</div>
+          </div>
+          <button class="btn" onclick="showChangePasswordModal()">Change Password</button>
+        </div>
+      </div>
+
+      ${joinDate ? `<div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Member Since</div>
+        </div>
+        <div class="settings-row-control">
+          <div style="font-size:13px;color:var(--text-secondary);font-weight:500">${joinDate}</div>
+        </div>
+      </div>` : ''}
+    </div>
+
+    <!-- Library section -->
+    <div class="settings-section">
+      <div class="settings-section-title">Library</div>
+
+      <div class="settings-row">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Import from TV Time</div>
+          <div class="settings-row-desc">Import your shows from a TV Time CSV export</div>
+        </div>
+        <div class="settings-row-control">
+          <input type="file" id="settings-tvtime-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
+          <button class="btn" onclick="document.getElementById('settings-tvtime-input').click()">Import CSV</button>
+        </div>
+      </div>
+
+      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Clear Library</div>
+          <div class="settings-row-desc">Delete all shows, history, and custom lists</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="btn danger" onclick="confirmClearLibrary()">Clear Library</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="settings-section settings-danger-section">
+      <div class="settings-section-title" style="color:var(--red)">Danger Zone</div>
+
+      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
+        <div class="settings-row-label">
+          <div class="settings-row-title">Delete Account</div>
+          <div class="settings-row-desc">Permanently delete your account and all associated data. This cannot be undone.</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="btn danger" onclick="showDeleteAccountModal()">Delete Account</button>
+        </div>
+      </div>
+    </div>
+
   </div>`;
 }

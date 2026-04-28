@@ -20,8 +20,8 @@
 
     <div class="auth-form">
       <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+        <label>Email or Username</label>
+        <input type="text" id="identifier" placeholder="you@example.com or @username" autocomplete="username">
       </div>
       <div class="form-group">
         <label>Password</label>
@@ -63,11 +63,38 @@
   }
 
   async function handleLogin() {
-    const email    = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
+    const identifier = document.getElementById('identifier').value.trim();
+    const password   = document.getElementById('password').value;
     showError('');
-    if (!email || !password) { showError('Please fill in all fields.'); return; }
+    if (!identifier || !password) { showError('Please fill in all fields.'); return; }
     setLoading(true);
+
+    let email = identifier;
+
+    // If no @ symbol, treat as username and look up the email
+    if (!identifier.includes('@')) {
+      const username = identifier.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      try {
+        const snap = await db.collection('usernames').doc(username).get();
+        if (!snap.exists) {
+          showError('No account found with this username.');
+          setLoading(false);
+          return;
+        }
+        const data = snap.data();
+        if (!data.email) {
+          showError('Could not find this account. Try signing in with your email address instead.');
+          setLoading(false);
+          return;
+        }
+        email = data.email;
+      } catch(e) {
+        showError('Could not look up username. Check your connection and try again.');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       await auth.signInWithEmailAndPassword(email, password);
       window.location.href = 'index.html';
@@ -102,7 +129,6 @@
     return map[code] || `Error (${code}): ${message || 'Please try again.'}`;
   }
 
-  // Allow Enter key to submit
   document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
 </script>
 </body>

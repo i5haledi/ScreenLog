@@ -21,8 +21,9 @@ async function syncLoad() {
       if (data.customLists) state.customLists = data.customLists;
       if (data.activityLog) state.activityLog = data.activityLog;
       if (data.favorites)   state.favorites   = data.favorites;
-      if (data.profilePic)  state.profilePic  = data.profilePic;
-      if (data.username)    currentUsername   = data.username;
+      if (data.profilePic)         state.profilePic         = data.profilePic;
+      if (data.profileBannerColor) state.profileBannerColor = data.profileBannerColor;
+      if (data.username)           currentUsername          = data.username;
     }
 
     // FIX: Clear before loading from Firestore (authoritative source)
@@ -58,10 +59,11 @@ async function _firestoreSaveMain() {
   if (!currentUser) return;
   try {
     await db.collection('users').doc(currentUser.uid).set({
-      customLists: state.customLists || [],
-      activityLog: (state.activityLog || []).slice(0, 100),
-      favorites:   state.favorites   || [],
-      profilePic:  state.profilePic  || null,
+      customLists:        state.customLists        || [],
+      activityLog:        (state.activityLog || []).slice(0, 100),
+      favorites:          state.favorites          || [],
+      profilePic:         state.profilePic         || null,
+      profileBannerColor: state.profileBannerColor || null,
     }, { merge: true });
   } catch(e) { console.warn('Firestore main save failed:', e); }
 }
@@ -149,6 +151,7 @@ function _localLoad() {
 function save() {
   _localSave();
   syncSave();
+  if (typeof schedulePublicSync === 'function') schedulePublicSync();
 }
 
 function load() { _localLoad(); }
