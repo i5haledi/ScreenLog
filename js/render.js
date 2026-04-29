@@ -69,7 +69,8 @@ function renderHome() {
       const pct       = totalEps > 0 ? Math.round(watchedEps / totalEps * 100) : 0;
       const next      = findNextEpisode(d);
       const thumb     = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;
-      const epLabel   = next ? next.label : 'Up to date';
+      const hasSeasonsData = state.seasons[show.id] && Object.keys(state.seasons[show.id]).length > 0;
+      const epLabel   = next ? next.label : (hasSeasonsData ? 'Up to date' : '');
       const tagHtml   = next?.tag
         ? `<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;background:${next.tagColor}22;color:${next.tagColor};margin-left:6px">${next.tag}</span>`
         : '';

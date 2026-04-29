@@ -139,6 +139,7 @@ html, body {
   font-weight: 400;
   letter-spacing: 2px;
   flex: 1;
+  display: none;
 }
 .search-wrap { position: relative; width: 500px; }
 .search-wrap input {
@@ -602,7 +603,7 @@ html, body {
     gap: 10px;
     flex-wrap: wrap;
   }
-  #topbar h1 { font-size: 22px; flex: 1; min-width: 0; }
+  #topbar h1 { font-size: 22px; flex: 1; min-width: 0; display: none; }
 
   /* Search full width on mobile */
   .search-wrap { width: 100%; order: 3; flex-basis: 100%; }
