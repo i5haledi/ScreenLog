@@ -22,19 +22,25 @@ auth.onAuthStateChanged(async user => {
   setUserDisplay(initialLabel[0].toUpperCase(), initialLabel);
   render();
 
-  // ── 2. Fetch username & Firestore data in background ─────────────────────
+  // ── 2. Fetch all Firestore data in parallel ──────────────────────────────
   try {
-    const uid      = user.uid;
-    const userDoc  = await db.collection('users').doc(uid).get();
+    const uid = user.uid;
+
+    // Fire all three requests simultaneously instead of sequentially
+    const [userDoc, showsSnap, seasonsSnap] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('users').doc(uid).collection('shows').get(),
+      db.collection('users').doc(uid).collection('seasons').get(),
+    ]);
+
     const userData = userDoc.exists ? userDoc.data() : {};
 
-    // Merge Firestore data into state
-    if (userData.customLists) state.customLists  = userData.customLists;
-    if (userData.activityLog) state.activityLog  = userData.activityLog;
-    if (userData.profilePic)  state.profilePic   = userData.profilePic;
-    if (userData.favorites)   state.favorites    = userData.favorites;
+    if (userData.customLists)        state.customLists        = userData.customLists;
+    if (userData.activityLog)        state.activityLog        = userData.activityLog;
+    if (userData.profilePic)         state.profilePic         = userData.profilePic;
+    if (userData.favorites)          state.favorites          = userData.favorites;
+    if (userData.profileBannerColor) state.profileBannerColor = userData.profileBannerColor;
 
-    // Set username from Firestore (authoritative source)
     if (userData.username) {
       currentUsername = userData.username;
       localStorage.setItem('sl_username_' + uid, userData.username);
@@ -43,18 +49,11 @@ auth.onAuthStateChanged(async user => {
     const displayLabel = currentUsername || user.email || 'User';
     setUserDisplay(displayLabel[0].toUpperCase(), displayLabel);
 
-    // FIX: Clear local state before loading from Firestore.
-    // Prevents deleted shows on other devices from persisting,
-    // and prevents cross-account data leaks.
-    state.shows   = {};
-    state.seasons = {};
-
-    // Load shows subcollection
-    const showsSnap = await db.collection('users').doc(uid).collection('shows').get();
+    // Replace state only after all data is ready (keeps localStorage cache
+    // intact during loading so the first render stays correct)
+    state.shows = {};
     showsSnap.forEach(doc => { state.shows[doc.id] = doc.data(); });
-
-    // Load seasons subcollection
-    const seasonsSnap = await db.collection('users').doc(uid).collection('seasons').get();
+    state.seasons = {};
     seasonsSnap.forEach(doc => { state.seasons[doc.id] = doc.data(); });
 
     _localSave();
