@@ -625,7 +625,7 @@ function closeSidebar() {
 // ─── PROFILE BANNER COLOR ─────────────────────────────────────────────────────
 function setBannerColor(color) {
   state.profileBannerColor = color;
-  const hero = document.querySelector('.prof2-hero');
+  const hero = document.querySelector('.pp-hero');
   if (hero) hero.style.background = color;
   save();
 }

@@ -675,26 +675,22 @@ function renderProfile() {
   const c = document.getElementById('content');
 
   const allShows       = Object.values(state.shows);
-  const totalShows     = allShows.length;
   const watchingCount  = allShows.filter(d => d.status === 'watching').length;
   const completedCount = allShows.filter(d => d.status === 'completed').length;
-  const watchlistCount = allShows.filter(d => d.status === 'watchlist').length;
   const finishedCount  = allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')).length;
 
-  const now    = new Date();
+  const now = new Date();
   const months = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString('en-US',{month:'short'}), eps: 0, mins: 0 });
   }
 
-  // Total watched episodes from state (accurate, includes bulk-marked shows)
   let totalEpsWatched = 0;
   Object.values(state.shows).forEach(d => {
     totalEpsWatched += Object.values(d.watched || {}).filter(Boolean).length;
   });
 
-  // Accurate hours: sum runtime of every watched episode from loaded season data
   let totalMinsAllWatched = 0;
   Object.entries(state.shows).forEach(([showId, d]) => {
     Object.entries(d.watched || {}).forEach(([key, watched]) => {
@@ -705,8 +701,6 @@ function renderProfile() {
     });
   });
 
-  // Monthly chart data: only count individually logged 'ep' activity entries (has timestamps).
-  // Bulk-added shows (Mark Completed, Mark All Season) are excluded — they have no 'ep' log entries.
   let totalMinsLog = 0;
   (state.activityLog || []).forEach(a => {
     if (a.type !== 'ep') return;
@@ -717,203 +711,221 @@ function renderProfile() {
       const match = a.detail.match(/^S(\d+)E(\d+)/);
       if (match) {
         const ep = state.seasons[a.showId]?.[match[1]]?.episodes?.find(e => e.episode_number === parseInt(match[2]));
-        runtime  = ep?.runtime || 0;
+        runtime = ep?.runtime || 0;
       }
     }
     totalMinsLog += runtime;
     if (bucket) { bucket.eps++; bucket.mins += runtime; }
   });
 
-  // Total individually tracked episodes (matches what the monthly bars actually show)
   const totalTrackedEps = (state.activityLog || []).filter(a => a.type === 'ep').length;
 
-  function formatWatchTime(mins) {
-    const hours   = Math.floor(mins / 60);
-    const days    = Math.floor(hours / 24);
-    const mo      = Math.floor(days / 30);
-    const remDays = days % 30;
-    const remHrs  = hours % 24;
-    return `<span class="time-num">${mo}</span><span class="time-unit"> Month${mo!==1?'s':''} </span><span class="time-num">${remDays}</span><span class="time-unit"> Day${remDays!==1?'s':''} </span><span class="time-num">${remHrs}</span><span class="time-unit"> Hour${remHrs!==1?'s':''}</span>`;
+  function watchTimeDisplay(mins) {
+    const hours = Math.floor(mins / 60);
+    const days  = Math.floor(hours / 24);
+    const mo    = Math.floor(days / 30);
+    const remD  = days % 30;
+    const remH  = hours % 24;
+    if (mo > 0) return `<span class="pp-wt-num">${mo}</span><span class="pp-wt-unit"> Mo</span> <span class="pp-wt-num">${remD}</span><span class="pp-wt-unit"> Day${remD!==1?'s':''}</span> <span class="pp-wt-num">${remH}</span><span class="pp-wt-unit"> Hr${remH!==1?'s':''}</span>`;
+    if (days > 0) return `<span class="pp-wt-num">${days}</span><span class="pp-wt-unit"> Day${days!==1?'s':''}</span> <span class="pp-wt-num">${remH}</span><span class="pp-wt-unit"> Hr${remH!==1?'s':''}</span>`;
+    return `<span class="pp-wt-num">${hours}</span><span class="pp-wt-unit"> Hr${hours!==1?'s':''}</span> <span class="pp-wt-num">${mins%60}</span><span class="pp-wt-unit"> Min</span>`;
   }
 
-  function buildChart(data, color, gradId) {
+  function buildLineChart(data, color, gradId) {
+    const W = 520, H = 130, PX = 8, PY = 18, BT = 22;
+    const cH = H - PY - BT, cW = W - PX * 2;
     const max = Math.max(...data.map(d => d.val), 1);
-    const W = 760, H = 150, PAD = 10, BAR_W = 36;
-    const GAP = (W - PAD * 2 - BAR_W * data.length) / (data.length - 1);
-    const bars = data.map((d, i) => {
-      const barH = Math.max((d.val / max) * (H - 24), d.val > 0 ? 4 : 0);
-      const x = PAD + i * (BAR_W + GAP);
-      const y = H - 18 - barH;
-      return { x, y, barH, val: d.val, label: d.label };
-    });
-    return `<svg viewBox="0 0 ${W} ${H+16}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;display:block">
+    const pts = data.map((d, i) => ({
+      x: PX + (i / (data.length - 1)) * cW,
+      y: PY + (1 - d.val / max) * cH,
+      val: d.val, label: d.label
+    }));
+    let line = `M ${pts[0].x},${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i-1].x + pts[i].x) / 2;
+      line += ` C ${cpx},${pts[i-1].y} ${cpx},${pts[i].y} ${pts[i].x},${pts[i].y}`;
+    }
+    const area = `${line} L ${pts[pts.length-1].x},${H-BT} L ${pts[0].x},${H-BT} Z`;
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;overflow:visible">
       <defs>
         <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${color}" stop-opacity="0.85"/>
-          <stop offset="100%" stop-color="${color}" stop-opacity="0.1"/>
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      <line x1="${PAD}" y1="${H-18}" x2="${W-PAD}" y2="${H-18}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-      ${bars.map(b => `<g>
-        <rect x="${b.x}" y="${b.y}" width="${BAR_W}" height="${b.barH}" rx="5" fill="url(#${gradId})"/>
-        ${b.val>0?`<text x="${b.x+BAR_W/2}" y="${b.y-5}" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="9" font-family="Plus Jakarta Sans,sans-serif">${b.val}</text>`:''}
-        <text x="${b.x+BAR_W/2}" y="${H+12}" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Plus Jakarta Sans,sans-serif">${b.label}</text>
-      </g>`).join('')}
+      <path d="${area}" fill="url(#${gradId})"/>
+      <path d="${line}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map((p, i) => `
+        <circle cx="${p.x}" cy="${p.y}" r="${p.val > 0 ? 3 : 1.5}" fill="${p.val > 0 ? color : 'rgba(255,255,255,0.08)'}" stroke="${p.val > 0 ? 'rgba(0,0,0,0.6)' : 'none'}" stroke-width="1.5"/>
+        ${p.val > 0 ? `<text x="${p.x}" y="${p.y - 7}" text-anchor="middle" fill="${color}" font-size="8.5" font-family="Thmanyah Sans,sans-serif" font-weight="600">${p.val}</text>` : ''}
+        ${i % 2 === 0 || data.length <= 6 ? `<text x="${p.x}" y="${H - 5}" text-anchor="middle" fill="rgba(255,255,255,0.22)" font-size="9" font-family="Thmanyah Sans,sans-serif">${p.label}</text>` : ''}
+      `).join('')}
     </svg>`;
   }
 
   const epsData = months.map(m => ({ label: m.label, val: m.eps }));
   const hrsData = months.map(m => ({ label: m.label, val: Math.round(m.mins/60) }));
 
-  const uname    = currentUsername || (currentUser?.email || 'User');
-  const initial  = uname[0].toUpperCase();
-  const joinDate = currentUser?.metadata?.creationTime
+  const uname      = currentUsername || (currentUser?.email || 'User');
+  const initial    = uname[0].toUpperCase();
+  const joinDate   = currentUser?.metadata?.creationTime
     ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month:'long', year:'numeric' }) : '';
-  const profilePic = state.profilePic || null;
+  const profilePic  = state.profilePic || null;
   const bannerColor = state.profileBannerColor || '#0d0f1a';
 
+  const genreCount = {};
+  allShows.forEach(d => { (d.show?.genres || []).forEach(g => { genreCount[g.name] = (genreCount[g.name] || 0) + 1; }); });
+  const topGenres = Object.entries(genreCount).sort((a,b) => b[1]-a[1]).slice(0, 6);
+  const maxGenre  = topGenres[0]?.[1] || 1;
+  const GCOLS     = ['#7c6aff','#4ecdc4','#f4a534','#ff6b6b','#4caf87','#ef5fa7'];
+
   const favsHtml = [0,1,2,3].map(i => {
-    const fid  = (state.favorites||[])[i];
-    const fd   = fid ? state.shows[fid] : null;
+    const fid = (state.favorites||[])[i];
+    const fd  = fid ? state.shows[fid] : null;
     const show = fd?.show;
     if (show) {
-      const img = show.poster_path ? IMG+show.poster_path : FALLBACK_IMG;      return `<div class="fav-card fav-filled" onclick="openShow(${show.id})">
-        <img src="${img}" class="fav-poster" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'">
-        <div class="fav-overlay">
-          <div class="fav-title">${escHtml(show.name)}</div>
-          <button class="fav-remove-btn" onclick="event.stopPropagation();removeFavorite(${i})">✕</button>
+      const img = show.poster_path ? IMG+show.poster_path : FALLBACK_IMG;
+      return `<div class="pp-fav pp-fav-filled" onclick="openShow(${show.id})">
+        <img src="${img}" loading="lazy" decoding="async" onerror="this.src='${FALLBACK_IMG}'" style="width:100%;height:100%;object-fit:cover;display:block">
+        <div class="pp-fav-overlay">
+          <div class="pp-fav-title">${escHtml(show.name)}</div>
+          <button class="pp-fav-rm" onclick="event.stopPropagation();removeFavorite(${i})">✕</button>
         </div>
       </div>`;
     }
-    return `<div class="fav-card fav-empty" onclick="openFavoritePicker(${i})">
-      <div class="fav-plus">＋</div>
-      <div class="fav-add-label">Add Favorite</div>
+    return `<div class="pp-fav pp-fav-empty" onclick="openFavoritePicker(${i})">
+      <div class="pp-fav-plus">＋</div>
     </div>`;
   }).join('');
 
   c.innerHTML = `
-  <input type="file" id="pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event)">
+  <input type="file"  id="pic-input"          accept="image/*" style="display:none" onchange="handlePicUpload(event)">
   <input type="color" id="banner-color-input" value="${bannerColor}" style="display:none" oninput="setBannerColor(this.value)">
 
-  <!-- ── HERO ── -->
-  <div class="prof2-hero" style="background:${bannerColor}">
-    <div class="prof2-hero-overlay"></div>
-    <button class="prof2-banner-color-btn" onclick="document.getElementById('banner-color-input').click()" title="Change banner color">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 12c0 4-3 7-7 7S3 16 3 12 6 5 10 5"/><path d="M21 3L9 15"/></svg>
-      Color
-    </button>
-    <div class="prof2-hero-inner">
+  <div class="pp-wrap">
 
-      <!-- Avatar -->
-      <div class="prof2-avatar-wrap" onclick="document.getElementById('pic-input').click()" title="Change photo">
-        ${profilePic
-          ? `<img src="${profilePic}" class="prof2-avatar-img">`
-          : `<div class="prof2-avatar-initial">${initial}</div>`}
-        <div class="prof2-avatar-edit">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-          </svg>
+    <!-- ── HERO ── -->
+    <div class="pp-hero" style="background:${bannerColor}">
+      <div class="pp-hero-grad"></div>
+      <button class="pp-color-btn" onclick="document.getElementById('banner-color-input').click()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 12c0 4-3 7-7 7S3 16 3 12 6 5 10 5"/><path d="M21 3L9 15"/></svg>
+        Theme
+      </button>
+      <div class="pp-hero-inner">
+        <div class="pp-avatar" onclick="document.getElementById('pic-input').click()">
+          ${profilePic ? `<img src="${profilePic}" class="pp-avatar-img">` : `<div class="pp-avatar-init">${initial}</div>`}
+          <div class="pp-avatar-edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg></div>
+        </div>
+        <div class="pp-hero-info">
+          <div class="pp-hero-name">${escHtml(uname)}</div>
+          <div class="pp-hero-handle">@${escHtml(uname)}</div>
+          ${joinDate ? `<div class="pp-hero-since">Member since ${joinDate}</div>` : ''}
+        </div>
+        <div class="pp-hero-stats">
+          <div class="pp-hstat"><div class="pp-hstat-v">${allShows.length}</div><div class="pp-hstat-l">Shows</div></div>
+          <div class="pp-hdiv"></div>
+          <div class="pp-hstat"><div class="pp-hstat-v">${totalEpsWatched}</div><div class="pp-hstat-l">Episodes</div></div>
+          <div class="pp-hdiv"></div>
+          <div class="pp-hstat"><div class="pp-hstat-v">${Math.round(totalMinsAllWatched/60)}</div><div class="pp-hstat-l">Hours</div></div>
         </div>
       </div>
+    </div>
 
-      <!-- Info -->
-      <div class="prof2-info">
-        <div class="prof2-username">@${escHtml(uname)}</div>
-        <div class="prof2-email">${escHtml(currentUser?.email||'')}</div>
-        ${joinDate ? `<div class="prof2-since">Member since ${joinDate}</div>` : ''}
+    <!-- ── STAT STRIP ── -->
+    <div class="pp-stat-strip">
+      <div class="pp-stat" style="--c:#f4a534">
+        <div class="pp-stat-ic" style="background:rgba(244,165,52,0.12);color:#f4a534">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div><div class="pp-stat-v">${watchingCount}</div><div class="pp-stat-l">Watching</div></div>
       </div>
-
-      <!-- Quick stats in hero -->
-      <div class="prof2-hero-stats">
-        <div class="prof2-hstat"><div class="prof2-hstat-num">${totalShows}</div><div class="prof2-hstat-label">Shows</div></div>
-        <div class="prof2-hstat-div"></div>
-        <div class="prof2-hstat"><div class="prof2-hstat-num">${totalEpsWatched}</div><div class="prof2-hstat-label">Episodes</div></div>
-        <div class="prof2-hstat-div"></div>
-        <div class="prof2-hstat"><div class="prof2-hstat-num">${Math.round(totalMinsAllWatched/60)}</div><div class="prof2-hstat-label">Hours</div></div>
+      <div class="pp-stat" style="--c:#4caf87">
+        <div class="pp-stat-ic" style="background:rgba(76,175,135,0.12);color:#4caf87">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div><div class="pp-stat-v">${completedCount}</div><div class="pp-stat-l">Up to Date</div></div>
+      </div>
+      <div class="pp-stat" style="--c:#7c6aff">
+        <div class="pp-stat-ic" style="background:rgba(124,106,255,0.12);color:#7c6aff">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div><div class="pp-stat-v">${finishedCount}</div><div class="pp-stat-l">Finished</div></div>
+      </div>
+      <div class="pp-stat" style="--c:#4ecdc4">
+        <div class="pp-stat-ic" style="background:rgba(78,205,196,0.12);color:#4ecdc4">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div><div class="pp-stat-v">${totalEpsWatched}</div><div class="pp-stat-l">Episodes</div></div>
       </div>
     </div>
+
+    <!-- ── MAIN GRID ── -->
+    <div class="pp-grid">
+
+      <!-- LEFT -->
+      <div class="pp-col">
+
+        <div class="pp-card">
+          <div class="pp-card-head">
+            <span class="pp-card-ttl">Favorite Shows</span>
+            <span style="font-size:11px;color:var(--text-muted)">Click to change</span>
+          </div>
+          <div class="pp-favs">${favsHtml}</div>
+        </div>
+
+        <div class="pp-card">
+          <div class="pp-card-head"><span class="pp-card-ttl">Top Genres</span></div>
+          ${topGenres.length
+            ? `<div class="pp-genres">${topGenres.map(([name, count], i) => {
+                const pct = Math.round(count / maxGenre * 100);
+                return `<div class="pp-genre-row">
+                  <div class="pp-genre-dot" style="background:${GCOLS[i]}"></div>
+                  <div class="pp-genre-name">${escHtml(name)}</div>
+                  <div class="pp-genre-bar-bg"><div class="pp-genre-bar" style="width:${pct}%;background:${GCOLS[i]}"></div></div>
+                  <div class="pp-genre-n">${count}</div>
+                </div>`;
+              }).join('')}</div>`
+            : `<div style="font-size:13px;color:var(--text-muted);padding:6px 0">Add more shows to see genre breakdown</div>`}
+        </div>
+
+      </div>
+
+      <!-- RIGHT -->
+      <div class="pp-col">
+
+        <div class="pp-card pp-wt-card">
+          <div class="pp-card-head"><span class="pp-card-ttl">Time Spent Watching</span></div>
+          <div class="pp-wt">${watchTimeDisplay(totalMinsAllWatched)}</div>
+          <div class="pp-wt-sub">Across all episodes</div>
+        </div>
+
+        <div class="pp-card">
+          <div class="pp-chart-hdr">
+            <div>
+              <div class="pp-card-ttl">Activity</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px">Last 12 months</div>
+            </div>
+            <div class="pp-chart-tabs">
+              <button class="pp-ctab pp-ctab-active" id="pp-ctab-eps"
+                onclick="document.getElementById('pp-chart-eps').style.display='block';document.getElementById('pp-chart-hrs').style.display='none';this.classList.add('pp-ctab-active');document.getElementById('pp-ctab-hrs').classList.remove('pp-ctab-active')">
+                Episodes <span class="pp-ctab-n">${totalTrackedEps}</span>
+              </button>
+              <button class="pp-ctab" id="pp-ctab-hrs"
+                onclick="document.getElementById('pp-chart-hrs').style.display='block';document.getElementById('pp-chart-eps').style.display='none';this.classList.add('pp-ctab-active');document.getElementById('pp-ctab-eps').classList.remove('pp-ctab-active')">
+                Hours <span class="pp-ctab-n">${Math.round(totalMinsLog/60)}</span>
+              </button>
+            </div>
+          </div>
+          <div id="pp-chart-eps">${buildLineChart(epsData,'#7c6aff','pp-grad-eps')}</div>
+          <div id="pp-chart-hrs" style="display:none">${buildLineChart(hrsData,'#4ecdc4','pp-grad-hrs')}</div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
-  <!-- ── BODY ── -->
-  <div class="prof2-body">
-
-    <!-- Left column -->
-    <div class="prof2-left">
-
-      <!-- Favorites -->
-      <div class="prof2-card">
-        <div class="prof2-card-label">Favorite Shows</div>
-        <div class="fav-grid" style="max-width:100%;margin-top:14px">${favsHtml}</div>
-      </div>
-
-      <!-- Time card -->
-      <div class="prof2-card">
-        <div class="prof2-card-label">Time Spent Watching</div>
-        <div class="prof-time-value" style="font-size:32px;margin-top:10px">${formatWatchTime(totalMinsAllWatched)}</div>
-      </div>
-
-      <!-- Status breakdown -->
-      <div class="prof2-card">
-        <div class="prof2-card-label">Top Genres</div>
-        <div class="prof2-breakdown">
-          ${(() => {
-            const genreCount = {};
-            allShows.forEach(d => {
-              (d.show?.genres || []).forEach(g => {
-                genreCount[g.name] = (genreCount[g.name] || 0) + 1;
-              });
-            });
-            const sorted = Object.entries(genreCount).sort((a,b) => b[1]-a[1]).slice(0, 6);
-            const maxVal = sorted[0]?.[1] || 1;
-            const colors = ['#7c6aff','#4ecdc4','#f4a534','#ff6b6b','#4caf87','#ef5fa7'];
-            if (!sorted.length) return `<div style="color:var(--text-muted);font-size:13px;padding:10px 0">Add shows to see genre breakdown</div>`;
-            return sorted.map(([genre, count], i) => {
-              const pct = Math.round(count / maxVal * 100);
-              return `<div class="prof2-bk-row">
-                <div class="prof2-bk-label">
-                  <span class="prof2-bk-dot" style="background:${colors[i]}"></span>${escHtml(genre)}
-                </div>
-                <div class="prof2-bk-right">
-                  <div class="prof2-bk-bar-wrap">
-                    <div class="prof2-bk-bar" style="width:${pct}%;background:${colors[i]}"></div>
-                  </div>
-                  <span class="prof2-bk-num">${count}</span>
-                </div>
-              </div>`;
-            }).join('');
-          })()}
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Right column: Charts -->
-    <div class="prof2-right">
-      <div class="prof2-card">
-        <div class="prof2-chart-hdr">
-          <div>
-            <div class="prof2-card-label">Episodes per Month</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
-          </div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#7c6aff;letter-spacing:1px">${totalTrackedEps}</div>
-        </div>
-        ${buildChart(epsData,'#7c6aff','grad-eps2')}
-      </div>
-
-      <div class="prof2-card">
-        <div class="prof2-chart-hdr">
-          <div>
-            <div class="prof2-card-label">Hours per Month</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Last 12 months</div>
-          </div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#4ecdc4;letter-spacing:1px">${Math.round(totalMinsLog/60)} hrs</div>
-        </div>
-        ${buildChart(hrsData,'#4ecdc4','grad-hrs2')}
-      </div>
-    </div>
-  </div>
-
-  <!-- FAVORITE PICKER -->
+  <!-- FAVORITE PICKER MODAL -->
   <div class="modal-overlay" id="fav-picker-modal" style="display:none" onclick="if(event.target===this)closeFavoritePicker()">
     <div class="modal" style="max-width:480px">
       <div class="modal-header">
@@ -1274,135 +1286,130 @@ function setUserProfileFilter(uid, f) {
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function renderSettings() {
-  const c         = document.getElementById('content');
-  const uname     = currentUsername || '';
-  const email     = currentUser?.email || '';
+  const c          = document.getElementById('content');
+  const uname      = currentUsername || '';
+  const email      = currentUser?.email || '';
   const profilePic = state.profilePic || null;
-  const initial   = (uname || email || 'U')[0].toUpperCase();
-  const joinDate  = currentUser?.metadata?.creationTime
-    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const initial    = (uname || email || 'U')[0].toUpperCase();
+  const joinDate   = currentUser?.metadata?.creationTime
+    ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) : '';
 
   c.innerHTML = `
   <input type="file" id="settings-pic-input" accept="image/*" style="display:none" onchange="handlePicUpload(event);renderSettings()">
+  <input type="file" id="settings-tvtime-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
 
-  <div class="settings-page">
+  <div class="st-wrap">
 
-    <!-- Profile section -->
-    <div class="settings-section">
-      <div class="settings-section-title">Profile</div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Profile Photo</div>
-          <div class="settings-row-desc">Shown on your profile and activity feed</div>
+    <!-- ── PROFILE CARD ── -->
+    <div class="st-profile-card">
+      <div class="st-profile-avatar" onclick="document.getElementById('settings-pic-input').click()">
+        ${profilePic
+          ? `<img src="${profilePic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
+          : `<span style="font-family:'Bebas Neue';font-size:28px;color:var(--accent)">${initial}</span>`}
+        <div class="st-profile-edit">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>
         </div>
-        <div class="settings-row-control" style="gap:14px;align-items:center">
-          <div class="settings-avatar-preview" onclick="document.getElementById('settings-pic-input').click()" title="Change photo">
-            ${profilePic
-              ? `<img src="${profilePic}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">`
-              : `<span style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--accent)">${initial}</span>`}
-            <div class="settings-avatar-edit-overlay">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </div>
-          </div>
-          <button class="btn" onclick="document.getElementById('settings-pic-input').click()">Change Photo</button>
-          ${profilePic ? `<button class="btn danger" onclick="removeProfilePic()" style="font-size:12px">Remove</button>` : ''}
-        </div>
+      </div>
+      <div class="st-profile-info">
+        <div class="st-profile-name">${uname ? escHtml(uname) : '<span style="color:var(--text-muted);font-size:14px">No username set</span>'}</div>
+        <div class="st-profile-email">${escHtml(email)}</div>
+        ${joinDate ? `<div class="st-profile-since">Member since ${joinDate}</div>` : ''}
+      </div>
+      <div class="st-profile-actions">
+        <button class="btn" onclick="document.getElementById('settings-pic-input').click()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Change Photo
+        </button>
+        ${profilePic ? `<button class="btn danger" onclick="removeProfilePic()">Remove</button>` : ''}
       </div>
     </div>
 
-    <!-- Account section -->
-    <div class="settings-section">
-      <div class="settings-section-title">Account</div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Username</div>
-          <div class="settings-row-desc">Your public @handle — must be unique</div>
-        </div>
-        <div class="settings-row-control">
-          <div class="settings-field-wrap" style="width:200px">
-            <span class="settings-field-prefix">@</span>
-            <div class="settings-field-value">${escHtml(uname) || '<span style="color:var(--text-muted)">Not set</span>'}</div>
-          </div>
-          <button class="btn" onclick="showChangeUsernameModal()">Change Username</button>
-        </div>
+    <!-- ── ACCOUNT ── -->
+    <div class="st-section">
+      <div class="st-section-hdr">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Account
       </div>
 
-      <div class="settings-row">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Email Address</div>
-          <div class="settings-row-desc">Used to sign in</div>
+      <div class="st-row">
+        <div class="st-row-ic" style="background:rgba(124,106,255,0.12);color:#7c6aff">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
-        <div class="settings-row-control">
-          <div class="settings-field-wrap" style="width:200px">
-            <div class="settings-field-value">${escHtml(email)}</div>
-          </div>
-          <button class="btn" onclick="showChangeEmailModal()">Change Email</button>
+        <div class="st-row-info">
+          <div class="st-row-title">Username</div>
+          <div class="st-row-val">${uname ? `@${escHtml(uname)}` : '<span style="color:var(--text-muted)">Not set</span>'}</div>
         </div>
+        <button class="st-row-btn" onclick="showChangeUsernameModal()">Change</button>
       </div>
 
-      <div class="settings-row">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Password</div>
-          <div class="settings-row-desc">Update your login password</div>
+      <div class="st-row">
+        <div class="st-row-ic" style="background:rgba(78,205,196,0.12);color:#4ecdc4">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         </div>
-        <div class="settings-row-control">
-          <div class="settings-field-wrap">
-            <div class="settings-field-value" style="letter-spacing:3px;color:var(--text-muted)">••••••••</div>
-          </div>
-          <button class="btn" onclick="showChangePasswordModal()">Change Password</button>
+        <div class="st-row-info">
+          <div class="st-row-title">Email Address</div>
+          <div class="st-row-val">${escHtml(email)}</div>
         </div>
+        <button class="st-row-btn" onclick="showChangeEmailModal()">Change</button>
       </div>
 
-      ${joinDate ? `<div class="settings-row" style="border-bottom:none;padding-bottom:0">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Member Since</div>
+      <div class="st-row st-row-last">
+        <div class="st-row-ic" style="background:rgba(244,165,52,0.12);color:#f4a534">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
         </div>
-        <div class="settings-row-control">
-          <div style="font-size:13px;color:var(--text-secondary);font-weight:500">${joinDate}</div>
+        <div class="st-row-info">
+          <div class="st-row-title">Password</div>
+          <div class="st-row-val" style="letter-spacing:3px;color:var(--text-muted)">••••••••</div>
         </div>
-      </div>` : ''}
-    </div>
-
-    <!-- Library section -->
-    <div class="settings-section">
-      <div class="settings-section-title">Library</div>
-
-      <div class="settings-row">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Import from TV Time</div>
-          <div class="settings-row-desc">Import your shows from a TV Time CSV export</div>
-        </div>
-        <div class="settings-row-control">
-          <input type="file" id="settings-tvtime-input" accept=".csv" style="display:none" onchange="handleTVTimeImport(event)">
-          <button class="btn" onclick="document.getElementById('settings-tvtime-input').click()">Import CSV</button>
-        </div>
-      </div>
-
-      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Clear Library</div>
-          <div class="settings-row-desc">Delete all shows, history, and custom lists</div>
-        </div>
-        <div class="settings-row-control">
-          <button class="btn danger" onclick="confirmClearLibrary()">Clear Library</button>
-        </div>
+        <button class="st-row-btn" onclick="showChangePasswordModal()">Change</button>
       </div>
     </div>
 
-    <!-- Danger Zone -->
-    <div class="settings-section settings-danger-section">
-      <div class="settings-section-title" style="color:var(--red)">Danger Zone</div>
+    <!-- ── LIBRARY ── -->
+    <div class="st-section">
+      <div class="st-section-hdr">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        Library
+      </div>
 
-      <div class="settings-row" style="border-bottom:none;padding-bottom:0">
-        <div class="settings-row-label">
-          <div class="settings-row-title">Delete Account</div>
-          <div class="settings-row-desc">Permanently delete your account and all associated data. This cannot be undone.</div>
+      <div class="st-row">
+        <div class="st-row-ic" style="background:rgba(76,175,135,0.12);color:#4caf87">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </div>
-        <div class="settings-row-control">
-          <button class="btn danger" onclick="showDeleteAccountModal()">Delete Account</button>
+        <div class="st-row-info">
+          <div class="st-row-title">Import from TV Time</div>
+          <div class="st-row-desc">Upload a TV Time CSV export to import your watch history</div>
         </div>
+        <button class="st-row-btn" onclick="document.getElementById('settings-tvtime-input').click()">Import CSV</button>
+      </div>
+
+      <div class="st-row st-row-last">
+        <div class="st-row-ic" style="background:rgba(255,91,91,0.1);color:#ff5b5b">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </div>
+        <div class="st-row-info">
+          <div class="st-row-title">Clear Library</div>
+          <div class="st-row-desc">Delete all shows, history, and custom lists</div>
+        </div>
+        <button class="st-row-btn st-row-btn-danger" onclick="confirmClearLibrary()">Clear</button>
+      </div>
+    </div>
+
+    <!-- ── DANGER ZONE ── -->
+    <div class="st-section st-danger">
+      <div class="st-section-hdr" style="color:#ff5b5b">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Danger Zone
+      </div>
+      <div class="st-row st-row-last">
+        <div class="st-row-ic" style="background:rgba(255,91,91,0.12);color:#ff5b5b">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </div>
+        <div class="st-row-info">
+          <div class="st-row-title">Delete Account</div>
+          <div class="st-row-desc">Permanently delete your account and all data. This cannot be undone.</div>
+        </div>
+        <button class="st-row-btn st-row-btn-danger" onclick="showDeleteAccountModal()">Delete</button>
       </div>
     </div>
 
