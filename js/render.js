@@ -504,7 +504,10 @@ async function openShow(id) {
   window.openSeasons[String(id)] = null;
 
   if (!state.seasons[id]) await loadSeasons(id, show);
-  if (state.shows[id]?.status === 'completed') ensureAllEpsMarked(id);
+  if (state.shows[id]?.status === 'completed') {
+    const tvStatus = state.shows[id]?.show?.status;
+    if (tvStatus === 'Ended' || tvStatus === 'Canceled') ensureAllEpsMarked(id);
+  }
   checkUpToDate(id);
   renderModalTab();
 }
@@ -803,7 +806,7 @@ function renderProfile() {
       ${pts.map((p, i) => `
         <circle cx="${p.x}" cy="${p.y}" r="${p.val > 0 ? 3 : 1.5}" fill="${p.val > 0 ? color : 'rgba(255,255,255,0.08)'}" stroke="${p.val > 0 ? 'rgba(0,0,0,0.6)' : 'none'}" stroke-width="1.5"/>
         ${p.val > 0 ? `<text x="${p.x}" y="${p.y - 7}" text-anchor="middle" fill="${color}" font-size="8.5" font-family="Thmanyah Sans,sans-serif" font-weight="600">${p.val}</text>` : ''}
-        ${i % 2 === 0 || data.length <= 6 ? `<text x="${p.x}" y="${H - 5}" text-anchor="middle" fill="rgba(255,255,255,0.22)" font-size="9" font-family="Thmanyah Sans,sans-serif">${p.label}</text>` : ''}
+        ${i % 2 === 0 || data.length <= 6 || i === data.length - 1 ? `<text x="${p.x}" y="${H - 5}" text-anchor="middle" fill="rgba(255,255,255,0.22)" font-size="9" font-family="Thmanyah Sans,sans-serif">${p.label}</text>` : ''}
       `).join('')}
     </svg>`;
   }
@@ -1492,6 +1495,7 @@ function renderUpcoming() {
   // Gather all future episodes from entire library
   const upcoming = [];
   Object.entries(state.shows).forEach(([showId, d]) => {
+    if (d.status === 'stopped' || d.status === 'watchlater') return;
     const seasonsData = state.seasons[showId];
     if (!seasonsData || !Object.keys(seasonsData).length) return;
     const show = d.show;
