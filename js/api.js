@@ -23,6 +23,8 @@ async function loadSeasons(id, show) {
   }));
   save();
   syncSaveSeasons(id);
+  // Refresh home / upcoming views so the episode label appears
+  if (state.view === 'home' || state.view === 'upcoming') render();
 }
 
 async function searchShows(q) {

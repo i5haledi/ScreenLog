@@ -12,6 +12,7 @@ function render() {
   else if (v === 'uptodate')   { completedFilter = 'uptodate';   renderShelfView('completed', 'All'); }
   else if (v === 'finished')   { completedFilter = 'finished';   renderShelfView('completed', 'All'); }
   else if (v === 'activity') renderActivity();
+  else if (v === 'upcoming') renderUpcoming();
   else if (v === 'profile')  renderProfile();
   else if (v === 'people')   renderPeople();
   else if (v === 'settings') renderSettings();
@@ -70,10 +71,13 @@ function renderHome() {
       const next      = findNextEpisode(d);
       const thumb     = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;
       const hasSeasonsData = state.seasons[show.id] && Object.keys(state.seasons[show.id]).length > 0;
-      const epLabel   = next ? next.label : (hasSeasonsData ? 'Up to date' : '');
+      const epLabel   = next ? next.label : (hasSeasonsData ? 'Up to date' : null);
       const tagHtml   = next?.tag
         ? `<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;background:${next.tagColor}22;color:${next.tagColor};margin-left:6px">${next.tag}</span>`
         : '';
+      const epContent = epLabel !== null
+        ? `${epLabel}${tagHtml}`
+        : `<span class="cw-ep-loading"><span class="spinner" style="width:12px;height:12px;border-width:1.5px;display:inline-block;vertical-align:middle"></span><span style="margin-left:7px;color:var(--text-muted);font-size:11px">Loading…</span></span>`;
       const epKey = next ? (() => {
         const sNums = Object.keys(state.seasons[show.id] || {}).sort((a, b) => +a - +b);
         for (const sn of sNums) {
@@ -91,7 +95,7 @@ function renderHome() {
           <div class="cw-info">
             <div>
               <div class="cw-title">${escHtml(show.name)}</div>
-              <div class="cw-ep" style="display:flex;align-items:center">${epLabel}${tagHtml}</div>
+              <div class="cw-ep" style="display:flex;align-items:center">${epContent}</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${watchedEps}/${totalEps} eps · ${pct}%</div>
@@ -127,6 +131,9 @@ function renderShelfView(status, title) {
   const c = document.getElementById('content');
 
   if (status === 'completed') {
+    if (!window._allSearch) window._allSearch = { q: '', mode: 'name' };
+    const { q: searchQ, mode: searchMode } = window._allSearch;
+
     const allShows = Object.values(state.shows);
     const byFilter = {
       all:        allShows,
@@ -137,12 +144,26 @@ function renderShelfView(status, title) {
       uptodate:   allShows.filter(d => d.status === 'completed' && d.show?.status !== 'Ended' && d.show?.status !== 'Canceled'),
       finished:   allShows.filter(d => d.status === 'completed' && (d.show?.status === 'Ended' || d.show?.status === 'Canceled')),
     };
-    const filtered = byFilter[completedFilter] || allShows;
+    let filtered = byFilter[completedFilter] || allShows;
+
+    if (searchQ.trim()) {
+      const sq = searchQ.toLowerCase();
+      filtered = filtered.filter(d => {
+        const show = d.show;
+        if (!show) return false;
+        if (searchMode === 'name')    return show.name?.toLowerCase().includes(sq);
+        if (searchMode === 'network') return (show.networks || []).some(n => n.name?.toLowerCase().includes(sq));
+        if (searchMode === 'cast')    return (show._credits?.cast || []).some(p => p.name?.toLowerCase().includes(sq));
+        return true;
+      });
+    }
+
+    const modePlaceholders = { name: 'show name…', network: 'network name…', cast: 'actor or actress…' };
 
   let html = `<div class="section-header" style="margin-bottom:16px">
     <div class="section-title">${title}</div>
     <div style="display:flex;align-items:center;gap:10px">
-      <span class="section-count">${filtered.length} shows</span>
+      <span class="section-count">${filtered.length} show${filtered.length !== 1 ? 's' : ''}</span>
       <button class="btn" style="padding:5px 12px;font-size:12px" onclick="toggleSelectMode()">${window._selectMode ? 'Cancel' : 'Select'}</button>
       ${window._selectMode && window._selectedShows?.size > 0 ? `
         <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('stopped')">Stopped</button>
@@ -151,6 +172,23 @@ function renderShelfView(status, title) {
         <button class="btn" style="padding:5px 12px;font-size:12px" onclick="moveSelectedShows('completed')">Completed</button>
         <button class="btn danger" style="padding:5px 12px;font-size:12px" onclick="deleteSelectedShows()">Delete (${window._selectedShows.size})</button>
       ` : ''}
+    </div>
+  </div>
+  <div class="lib-search-wrap">
+    <div class="lib-mode-pills">
+      ${['name','network','cast'].map(m => `
+        <button class="lib-mode-btn${searchMode===m?' active':''}" onclick="setAllSearchMode('${m}')">
+          ${{name:'By Name',network:'By Network',cast:'By Cast'}[m]}
+        </button>`).join('')}
+    </div>
+    <div class="lib-search-input-wrap">
+      <span class="lib-search-icon">⌕</span>
+      <input type="text" class="lib-search-input" id="lib-search-input"
+        placeholder="Search ${modePlaceholders[searchMode]}"
+        value="${escHtml(searchQ)}"
+        oninput="setAllSearchQuery(this.value)"
+        autocomplete="off">
+      ${searchQ ? `<button class="lib-search-clear" onclick="clearAllSearch()" title="Clear search">×</button>` : ''}
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
@@ -162,7 +200,10 @@ function renderShelfView(status, title) {
       </div>`;
 
     if (!filtered.length) {
-      html += `<div class="empty-state"><div class="big">▶</div><h3>Nothing here</h3><p>No shows match this filter yet</p></div>`;
+      const emptyMsg = searchQ.trim()
+        ? `<div class="empty-state"><div class="big">⌕</div><h3>No results</h3><p>No shows match "<strong>${escHtml(searchQ)}</strong>" — try a different search or mode</p></div>`
+        : `<div class="empty-state"><div class="big">▶</div><h3>Nothing here</h3><p>No shows match this filter yet</p></div>`;
+      html += emptyMsg;
     } else {
       const PAGE   = window._showPage || 40;
       const visible = filtered.slice(0, PAGE);
@@ -182,6 +223,10 @@ function renderShelfView(status, title) {
       }
     }
     c.innerHTML = html;
+    if (searchQ) {
+      const inp = document.getElementById('lib-search-input');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
     return;
   }
 
@@ -1414,4 +1459,233 @@ function renderSettings() {
     </div>
 
   </div>`;
+}
+
+// ─── ALL TAB LIBRARY SEARCH ───────────────────────────────────────────────────
+function setAllSearchMode(mode) {
+  if (!window._allSearch) window._allSearch = { q: '', mode: 'name' };
+  window._allSearch.mode = mode;
+  window._showPage = 40;
+  renderShelfView('completed', 'All');
+}
+
+function setAllSearchQuery(q) {
+  if (!window._allSearch) window._allSearch = { q: '', mode: 'name' };
+  window._allSearch.q = q;
+  window._showPage = 40;
+  renderShelfView('completed', 'All');
+}
+
+function clearAllSearch() {
+  if (!window._allSearch) window._allSearch = { q: '', mode: 'name' };
+  window._allSearch.q = '';
+  window._showPage = 40;
+  renderShelfView('completed', 'All');
+}
+
+// ─── UPCOMING EPISODES ────────────────────────────────────────────────────────
+function renderUpcoming() {
+  const c = document.getElementById('content');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
+
+  // Gather all future episodes from entire library
+  const upcoming = [];
+  Object.entries(state.shows).forEach(([showId, d]) => {
+    const seasonsData = state.seasons[showId];
+    if (!seasonsData || !Object.keys(seasonsData).length) return;
+    const show = d.show;
+    if (!show) return;
+    Object.entries(seasonsData).forEach(([snum, sData]) => {
+      const eps = sData.episodes || [];
+      eps.forEach(ep => {
+        if (!ep.air_date) return;
+        const airDate = new Date(ep.air_date);
+        airDate.setHours(0, 0, 0, 0);
+        if (airDate >= today) {
+          const isPremiere = ep.episode_number === 1;
+          const isFinale = ep.episode_number === eps[eps.length - 1]?.episode_number && eps.length > 1;
+          upcoming.push({ showId, show, snum, ep, airDate, dateStr: ep.air_date, status: d.status, isPremiere, isFinale });
+        }
+      });
+    });
+  });
+  upcoming.sort((a, b) => a.airDate - b.airDate);
+
+  if (!upcoming.length) {
+    c.innerHTML = `<div class="section-header" style="margin-bottom:20px">
+      <div class="section-title">Upcoming Episodes</div>
+    </div>
+    <div class="empty-state">
+      <div class="big" style="font-size:40px">📅</div>
+      <h3>No Upcoming Episodes</h3>
+      <p>Add shows to your library to see when their episodes air</p>
+    </div>`;
+    return;
+  }
+
+  // Calendar state
+  if (!window._upcomingCal) {
+    window._upcomingCal = { year: today.getFullYear(), month: today.getMonth(), selected: null };
+  }
+  const { year: calYear, month: calMonth, selected: selectedDate } = window._upcomingCal;
+
+  // Count episodes per day in this calendar month
+  const epDays = {};
+  upcoming.forEach(item => {
+    if (item.airDate.getFullYear() === calYear && item.airDate.getMonth() === calMonth) {
+      const d = item.airDate.getDate();
+      epDays[d] = (epDays[d] || 0) + 1;
+    }
+  });
+
+  // Build calendar HTML
+  const monthName = new Date(calYear, calMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  let calCells = '';
+  for (let i = 0; i < firstDay; i++) calCells += `<div class="uc-day empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
+    const isPast = new Date(calYear, calMonth, d) < today && !isToday;
+    const hasEps = !!epDays[d];
+    const isSelected = selectedDate === dateStr;
+    calCells += `<div class="uc-day${isToday ? ' today' : ''}${isPast ? ' past' : ''}${hasEps ? ' has-ep' : ''}${isSelected ? ' selected' : ''}"
+      onclick="${hasEps || isToday ? `selectUpcomingDate('${dateStr}')` : ''}">
+      <span class="uc-day-num">${d}</span>
+      ${hasEps ? `<span class="uc-dot">${epDays[d] > 1 ? epDays[d] : ''}</span>` : ''}
+    </div>`;
+  }
+
+  // Filter upcoming by selected date or show all (capped at next 90 days by default)
+  const showAll = !!window._upcomingCal?.showAll;
+  const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 90);
+  const listItems = selectedDate
+    ? upcoming.filter(item => item.dateStr === selectedDate)
+    : (showAll ? upcoming : upcoming.filter(item => item.airDate <= cutoff));
+  const hiddenCount = (selectedDate || showAll) ? 0 : upcoming.filter(item => item.airDate > cutoff).length;
+
+  // Group by date string
+  const groups = {};
+  listItems.forEach(item => {
+    if (!groups[item.dateStr]) groups[item.dateStr] = [];
+    groups[item.dateStr].push(item);
+  });
+
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+  function relativeDate(dateStr) {
+    if (dateStr === todayStr)    return 'Today';
+    if (dateStr === tomorrowStr) return 'Tomorrow';
+    const d = new Date(dateStr + 'T12:00:00');
+    const diff = Math.round((d - today) / 864e5);
+    if (diff <= 6) return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  const statusDot = { watching:'#f4a534', completed:'#4caf87', watchlist:'#4ecdc4', watchlater:'#4ecdc4', stopped:'#888', uptodate:'#4caf87' };
+
+  let listHtml = '';
+  Object.entries(groups).forEach(([dateStr, items]) => {
+    const isToday = dateStr === todayStr;
+    const isTomorrow = dateStr === tomorrowStr;
+    listHtml += `<div class="upcoming-group" id="upday-${dateStr}">
+      <div class="upcoming-date-label">
+        <span class="upd-reldate${isToday ? ' today' : isTomorrow ? ' tomorrow' : ''}">${relativeDate(dateStr)}</span>
+        <span class="upd-count">${items.length} ep${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="upcoming-eps">`;
+    items.forEach(({ show, snum, ep, status, isPremiere, isFinale }) => {
+      const thumb = show.poster_path ? `https://image.tmdb.org/t/p/w92${show.poster_path}` : FALLBACK_IMG;
+      const epCode = `S${String(snum).padStart(2, '0')}E${String(ep.episode_number).padStart(2, '0')}`;
+      const dot = statusDot[status] || '#888';
+      const tagHtml = isPremiere
+        ? `<span class="ue-tag premiere">Premiere</span>`
+        : isFinale ? `<span class="ue-tag finale">Finale</span>` : '';
+      const networkName = (show.networks || [])[0]?.name || '';
+      listHtml += `<div class="upcoming-ep-row" onclick="openShow(${show.id})">
+        <img class="ue-poster" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'" loading="lazy" decoding="async">
+        <div class="ue-info">
+          <div class="ue-show">
+            <span class="ue-status-dot" style="background:${dot}"></span>${escHtml(show.name)}
+          </div>
+          <div class="ue-ep">
+            <span class="ue-code">${epCode}</span>
+            ${ep.name ? `<span class="ue-title">· ${escHtml(ep.name)}</span>` : ''}
+            ${tagHtml}
+          </div>
+        </div>
+        ${networkName ? `<div class="ue-network">${escHtml(networkName)}</div>` : ''}
+      </div>`;
+    });
+    listHtml += `</div></div>`;
+  });
+
+  if (!listItems.length) {
+    listHtml = `<div class="upcoming-empty">No episodes on this date</div>`;
+  }
+
+  const clearBtn = selectedDate
+    ? `<button class="btn" onclick="selectUpcomingDate(null)" style="font-size:12px;padding:5px 12px">Show All</button>`
+    : '';
+  const showMoreBtn = hiddenCount > 0
+    ? `<div style="text-align:center;margin-top:20px">
+        <button class="btn" onclick="window._upcomingCal.showAll=true;renderUpcoming()" style="padding:10px 32px">
+          Show ${hiddenCount} more episode${hiddenCount !== 1 ? 's' : ''} beyond 90 days
+        </button>
+       </div>`
+    : '';
+
+  c.innerHTML = `
+    <div class="section-header" style="margin-bottom:20px">
+      <div class="section-title">Upcoming Episodes</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="section-count">${upcoming.length} upcoming</span>
+        ${clearBtn}
+      </div>
+    </div>
+    <div class="upcoming-layout">
+      <div class="uc-wrap">
+        <div class="uc-header">
+          <button class="uc-nav-btn" onclick="upcomingNavMonth(-1)">&#8249;</button>
+          <span class="uc-month-label">${monthName}</span>
+          <button class="uc-nav-btn" onclick="upcomingNavMonth(1)">&#8250;</button>
+        </div>
+        <div class="uc-day-hdrs">
+          ${['S','M','T','W','T','F','S'].map(d => `<div class="uc-day-hdr">${d}</div>`).join('')}
+        </div>
+        <div class="uc-grid">${calCells}</div>
+        <div class="uc-legend">
+          <span class="uc-legend-dot"></span><span>Episode airs</span>
+        </div>
+      </div>
+      <div class="upcoming-right">
+        <div class="upcoming-list">${listHtml}</div>
+        ${hiddenCount > 0 && !selectedDate && !window._upcomingCal?.showAll ? showMoreBtn : ''}
+      </div>
+    </div>`;
+}
+
+function upcomingNavMonth(dir) {
+  if (!window._upcomingCal) window._upcomingCal = { year: new Date().getFullYear(), month: new Date().getMonth(), selected: null };
+  window._upcomingCal.month += dir;
+  if (window._upcomingCal.month > 11) { window._upcomingCal.month = 0; window._upcomingCal.year++; }
+  if (window._upcomingCal.month < 0)  { window._upcomingCal.month = 11; window._upcomingCal.year--; }
+  window._upcomingCal.selected = null;
+  renderUpcoming();
+}
+
+function selectUpcomingDate(dateStr) {
+  if (!window._upcomingCal) window._upcomingCal = { year: new Date().getFullYear(), month: new Date().getMonth(), selected: null };
+  window._upcomingCal.selected = (dateStr === window._upcomingCal.selected) ? null : dateStr;
+  renderUpcoming();
+  if (window._upcomingCal.selected) {
+    setTimeout(() => {
+      const el = document.getElementById(`upday-${window._upcomingCal.selected}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
 }

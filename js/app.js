@@ -13,8 +13,8 @@ function navigate(view) {
     el.classList.toggle('active', el.dataset.view === view));
   const titles = {
     home: 'Main', watching: 'Watching', watchlist: 'Watchlist',
-    completed: 'All', activity: 'Activity', profile: 'My Profile', people: 'People',
-    settings: 'Settings'
+    completed: 'All', activity: 'Activity', upcoming: 'Upcoming',
+    profile: 'My Profile', people: 'People', settings: 'Settings'
   };
   document.getElementById('view-title').textContent = titles[view] || view;
   closeSidebar();
