@@ -100,6 +100,33 @@ function findNextEpisode(d) {
   return null;
 }
 
+// Reverse of checkUpToDate — demotes 'completed' → 'watching' when episodes are unmarked
+function checkDowngrade(showId) {
+  const d = state.shows[showId];
+  if (!d || d.status !== 'completed') return;
+  const show = d.show;
+  if (!show) return;
+  const seasonsData = state.seasons[showId];
+  if (!seasonsData || !Object.keys(seasonsData).length) return;
+  const today = new Date(); today.setHours(23, 59, 59, 999);
+  let hasUnwatched = false;
+  Object.entries(seasonsData).forEach(([snum, sData]) => {
+    (sData.episodes || []).forEach(ep => {
+      if (!ep.air_date) return;
+      if (new Date(ep.air_date) <= today && !d.watched?.[`${snum}_${ep.episode_number}`]) {
+        hasUnwatched = true;
+      }
+    });
+  });
+  if (hasUnwatched) {
+    state.shows[showId].status = 'watching';
+    save();
+    syncSaveShow(showId);
+    render();
+    showToast(`${show.name} moved back to Watching`);
+  }
+}
+
 function checkUpToDate(showId) {
   const d = state.shows[showId];
   if (!d || d.status !== 'watching') return;

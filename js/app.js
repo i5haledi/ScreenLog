@@ -79,6 +79,8 @@ function toggleEp(showId, key) {
     const epLabel = `S${snum}E${epnum}${epData?.name ? ' · ' + epData.name : ''}`;
     logActivity('ep', showId, show.name, show.poster_path, epLabel);
     checkUpToDate(showId);
+  } else {
+    checkDowngrade(showId);
   }
   save();
   syncSaveShow(showId); // FIX: sync the episode change
@@ -93,8 +95,9 @@ function markSeasonWatched(showId, snum, markAll) {
     state.shows[showId].watched[`${snum}_${ep.episode_number}`] = markAll;
   });
   if (markAll) checkUpToDate(showId);
+  else checkDowngrade(showId);
   save();
-  syncSaveShow(showId); // FIX: sync the bulk episode change
+  syncSaveShow(showId);
   renderEpisodesTab(document.getElementById('m-tab-content'));
   renderModalActions(showId);
 }
