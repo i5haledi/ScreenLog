@@ -62,7 +62,7 @@ function renderHome() {
 
   if (watching.length > 0) {
     html += `<div class="section-header"><div class="section-title">Continue Watching</div></div>`;
-    html += `<div class="cw-grid">`;
+    html += `<div class="cw-scroll">`;
     watching.forEach(d => {
       const show      = d.show;
       const totalEps  = countTotalEps(d);
@@ -72,12 +72,6 @@ function renderHome() {
       const thumb     = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;
       const hasSeasonsData = state.seasons[show.id] && Object.keys(state.seasons[show.id]).length > 0;
       const epLabel   = next ? next.label : (hasSeasonsData ? 'Up to date' : null);
-      const tagHtml   = next?.tag
-        ? `<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;background:${next.tagColor}22;color:${next.tagColor};margin-left:6px">${next.tag}</span>`
-        : '';
-      const epContent = epLabel !== null
-        ? `${epLabel}${tagHtml}`
-        : `<span class="cw-ep-loading"><span class="spinner" style="width:12px;height:12px;border-width:1.5px;display:inline-block;vertical-align:middle"></span><span style="margin-left:7px;color:var(--text-muted);font-size:11px">Loading…</span></span>`;
       const epKey = next ? (() => {
         const sNums = Object.keys(state.seasons[show.id] || {}).sort((a, b) => +a - +b);
         for (const sn of sNums) {
@@ -91,18 +85,15 @@ function renderHome() {
 
       html += `
         <div class="cw-card" onclick="openShow(${show.id})">
-          <img class="cw-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
-          <div class="cw-info">
-            <div>
-              <div class="cw-title">${escHtml(show.name)}</div>
-              <div class="cw-ep" style="display:flex;align-items:center">${epContent}</div>
-            </div>
-            <div>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${watchedEps}/${totalEps} eps · ${pct}%</div>
-              <div class="cw-bar-wrap"><div class="cw-bar" style="width:${pct}%"></div></div>
-            </div>
+          <div class="cw-poster-wrap">
+            <img class="cw-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
+            <div class="cw-bar-wrap"><div class="cw-bar" style="width:${pct}%"></div></div>
           </div>
-          ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark as watched">✓</button>` : ''}
+          <div class="cw-info">
+            <div class="cw-title">${escHtml(show.name)}</div>
+            <div class="cw-ep">${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : escHtml(epLabel)}</div>
+            ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark episode as watched">✓ Mark watched</button>` : ''}
+          </div>
         </div>`;
     });
     html += `</div>`;
