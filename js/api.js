@@ -1,5 +1,6 @@
 // ─── TMDB API ────────────────────────────────────────────────────────────────
-let searchTimeout = null;
+let searchTimeout   = null;
+let _searchCache    = {}; // keyed by show id → show object for current search
 
 async function fetchShow(id) {
   const r = await tmdbFetch(`${TMDB}/tv/${id}`);
@@ -46,32 +47,35 @@ async function onSearchInput() {
 
 async function doSearch(q) {
   const box = document.getElementById('search-results');
+  _searchCache = {};
   try {
     const results = await searchShows(q);
     if (!results.length) {
       box.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">No shows found</div>`;
       return;
     }
+    results.forEach(s => { _searchCache[s.id] = s; });
     box.innerHTML = results.map(s => {
-      const img = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
-      const year = (s.first_air_date || '').slice(0, 4);
+      const img   = s.poster_path ? IMG_SM + s.poster_path : FALLBACK_IMG;
+      const year  = (s.first_air_date || '').slice(0, 4);
       const inLib = !!state.shows[s.id];
-      return `<div class="search-result-item" onclick="openShowFromSearch(${JSON.stringify(s).replace(/"/g, '&quot;')})">
-        <img src="${img}" onerror="this.src='${FALLBACK_IMG}'">
+      return `<div class="search-result-item" data-id="${s.id}" role="option">
+        <img src="${img}" alt="${escHtml(s.name)} poster" onerror="this.src='${FALLBACK_IMG}'">
         <div class="sri-info">
           <div class="sri-title">${escHtml(s.name)}</div>
           <div class="sri-sub">${year || 'Unknown year'}</div>
         </div>
-        <div class="sri-actions" onclick="event.stopPropagation()">
+        <div class="sri-actions">
           ${inLib
-            ? `<button class="btn-xs active-btn" onclick="openShowFromSearch(${JSON.stringify(s).replace(/"/g, '&quot;')})">View</button>`
-            : `<button class="btn-xs primary" onclick="addShowFromSearch(${JSON.stringify(s).replace(/"/g, '&quot;')}, 'watching')">+ Watch</button>
-               <button class="btn-xs" onclick="addShowFromSearch(${JSON.stringify(s).replace(/"/g, '&quot;')}, 'watchlist')">◈</button>`
+            ? `<button class="btn-xs active-btn" data-action="view" aria-label="View ${escHtml(s.name)}">View</button>`
+            : `<button class="btn-xs primary" data-action="watch" aria-label="Add ${escHtml(s.name)} to watching">+ Watch</button>
+               <button class="btn-xs" data-action="watchlist" aria-label="Add ${escHtml(s.name)} to watchlist">◈</button>`
           }
         </div>
       </div>`;
     }).join('');
   } catch(e) {
+    console.error('Search failed:', e);
     box.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px">Search error. Try again.</div>`;
   }
 }
@@ -93,4 +97,19 @@ function openShowFromSearch(show) {
 function closeSearch() {
   document.getElementById('search-input').value = '';
   document.getElementById('search-results').style.display = 'none';
+  _searchCache = {};
 }
+
+// ─── SEARCH RESULTS EVENT DELEGATION ─────────────────────────────────────────
+document.getElementById('search-results').addEventListener('click', e => {
+  const item = e.target.closest('.search-result-item[data-id]');
+  if (!item) return;
+  const show = _searchCache[item.dataset.id];
+  if (!show) return;
+
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (action === 'watch')     { e.stopPropagation(); addShowFromSearch(show, 'watching'); }
+  else if (action === 'watchlist') { e.stopPropagation(); addShowFromSearch(show, 'watchlist'); }
+  else if (action === 'view') { e.stopPropagation(); openShowFromSearch(show); }
+  else openShowFromSearch(show);
+});

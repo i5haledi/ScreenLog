@@ -83,10 +83,9 @@ async function _flushPendingShows() {
   await Promise.all(ids.map(async id => {
     const d = state.shows[id];
     if (d) {
-      try { await ref.doc(String(id)).set(d); } catch(e) {}
+      try { await ref.doc(String(id)).set(d); } catch(e) { console.error('Show save failed:', id, e); }
     } else {
-      // FIX: deleted shows are cleaned up from Firestore
-      try { await ref.doc(String(id)).delete(); } catch(e) {}
+      try { await ref.doc(String(id)).delete(); } catch(e) { console.error('Show delete failed:', id, e); }
     }
   }));
 }
@@ -133,7 +132,7 @@ function _localSave() {
     const { seasons, ...rest } = state;
     localStorage.setItem('sl_state',   JSON.stringify(rest));
     localStorage.setItem('sl_seasons', JSON.stringify(seasons));
-  } catch(e) {}
+  } catch(e) { console.error('Local save failed:', e); }
 }
 
 function _localLoad() {
@@ -142,7 +141,7 @@ function _localLoad() {
     if (d) Object.assign(state, JSON.parse(d));
     const s = localStorage.getItem('sl_seasons');
     if (s) state.seasons = JSON.parse(s);
-  } catch(e) {}
+  } catch(e) { console.error('Local load failed:', e); }
 }
 
 // ─── OVERRIDES ────────────────────────────────────────────────────────────────

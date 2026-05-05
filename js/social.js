@@ -122,7 +122,7 @@ async function searchUsers(query) {
       try {
         const p = await db.collection('publicProfiles').doc(r.uid).get();
         if (p.exists) { const d = p.data(); r.profilePic = d.profilePic || null; r.stats = d.stats || {}; }
-      } catch(e) {}
+      } catch(e) { console.warn('Failed to fetch profile for', r.uid, e); }
     }));
     return results;
   } catch(e) { return []; }

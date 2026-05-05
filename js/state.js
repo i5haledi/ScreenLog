@@ -15,7 +15,7 @@ function save() {
     const { seasons, ...rest } = state;
     localStorage.setItem('sl_state', JSON.stringify(rest));
     localStorage.setItem('sl_seasons', JSON.stringify(seasons));
-  } catch(e) {}
+  } catch(e) { console.error('State save failed:', e); }
 }
 
 function load() {
@@ -24,7 +24,7 @@ function load() {
     if (d) Object.assign(state, JSON.parse(d));
     const s = localStorage.getItem('sl_seasons');
     if (s) state.seasons = JSON.parse(s);
-  } catch(e) {}
+  } catch(e) { console.error('State load failed:', e); }
 }
 
 // ─── ACTIVITY LOG ───────────────────────────────────────────────────────────

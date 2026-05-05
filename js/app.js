@@ -528,7 +528,7 @@ function handlePicUpload(event) {
       if (currentUser) {
         try {
           await db.collection('users').doc(currentUser.uid).set({ profilePic: base64 }, { merge: true });
-        } catch(e) {}
+        } catch(e) { console.error('Profile pic save failed:', e); }
       }
       // FIX: safe fallback if both username and email are null
       const label = currentUsername || currentUser?.email || 'U';
@@ -632,3 +632,57 @@ function setBannerColor(color) {
   if (hero) hero.style.background = color;
   save();
 }
+
+// ─── EVENT LISTENER INITIALIZATION ───────────────────────────────────────────
+(function initAppListeners() {
+  // Sidebar navigation — event delegation handles all nav-item clicks
+  const sidebar = document.getElementById('sidebar');
+  sidebar.addEventListener('click', e => {
+    const navItem = e.target.closest('.nav-item[data-view]');
+    if (navItem) { navigate(navItem.dataset.view); return; }
+    if (e.target.closest('#add-list-btn')) openNewListModal();
+  });
+  sidebar.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const navItem = e.target.closest('.nav-item[data-view]');
+    if (navItem) { e.preventDefault(); navigate(navItem.dataset.view); return; }
+    if (e.target.closest('#add-list-btn')) { e.preventDefault(); openNewListModal(); }
+  });
+
+  // Mobile sidebar toggle
+  document.getElementById('menu-toggle').addEventListener('click', toggleSidebar);
+  document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
+
+  // Search input
+  document.getElementById('search-input').addEventListener('input', onSearchInput);
+
+  // Show modal
+  document.getElementById('show-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.getElementById('close-show-modal').addEventListener('click', closeModal);
+  document.getElementById('tab-episodes').addEventListener('click', () => switchTab('episodes'));
+  document.getElementById('tab-about').addEventListener('click', () => switchTab('about'));
+  document.getElementById('tab-episodes').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab('episodes'); }
+  });
+  document.getElementById('tab-about').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab('about'); }
+  });
+
+  // Confirm modal
+  document.getElementById('confirm-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeConfirmModal();
+  });
+  document.getElementById('close-confirm-modal').addEventListener('click', closeConfirmModal);
+  document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmModal);
+  document.getElementById('confirm-ok-btn').addEventListener('click', confirmMarkEp);
+
+  // New list modal
+  document.getElementById('list-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeListModal();
+  });
+  document.getElementById('close-list-modal').addEventListener('click', closeListModal);
+  document.getElementById('list-cancel-btn').addEventListener('click', closeListModal);
+  document.getElementById('list-create-btn').addEventListener('click', createList);
+})();

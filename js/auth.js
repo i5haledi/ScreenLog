@@ -301,7 +301,7 @@ async function removeProfilePic() {
   state.profilePic = null;
   save();
   if (currentUser) {
-    try { await db.collection('users').doc(currentUser.uid).set({ profilePic: null }, { merge: true }); } catch(e) {}
+    try { await db.collection('users').doc(currentUser.uid).set({ profilePic: null }, { merge: true }); } catch(e) { console.error('Remove profile pic failed:', e); }
   }
   const label = currentUsername || currentUser?.email || 'U';
   setUserDisplay(label[0].toUpperCase(), label);
@@ -321,3 +321,48 @@ async function logout() {
   if (uid) localStorage.removeItem('sl_username_' + uid);
   window.location.href = 'login.html';
 }
+
+// ─── AUTH MODAL EVENT LISTENERS ───────────────────────────────────────────────
+(function initAuthListeners() {
+  // Logout button
+  document.getElementById('logout-btn').addEventListener('click', logout);
+
+  // Change username modal
+  const unameModal = document.getElementById('change-username-modal');
+  unameModal.addEventListener('click', e => { if (e.target === e.currentTarget) hideChangeUsernameModal(); });
+  document.getElementById('close-username-modal').addEventListener('click', hideChangeUsernameModal);
+  const unameInput = document.getElementById('change-username-input');
+  unameInput.addEventListener('input', function() {
+    this.value = this.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  });
+  unameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitChangeUsername(); });
+  document.getElementById('change-username-btn').addEventListener('click', submitChangeUsername);
+
+  // Change email modal
+  document.getElementById('change-email-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideChangeEmailModal();
+  });
+  document.getElementById('close-email-modal').addEventListener('click', hideChangeEmailModal);
+  document.getElementById('ce-new-email').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangeEmail(); });
+  document.getElementById('ce-password').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangeEmail(); });
+  document.getElementById('ce-btn').addEventListener('click', submitChangeEmail);
+
+  // Change password modal
+  document.getElementById('change-password-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideChangePasswordModal();
+  });
+  document.getElementById('close-password-modal').addEventListener('click', hideChangePasswordModal);
+  document.getElementById('cp-current').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangePassword(); });
+  document.getElementById('cp-new').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangePassword(); });
+  document.getElementById('cp-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangePassword(); });
+  document.getElementById('cp-btn').addEventListener('click', submitChangePassword);
+
+  // Delete account modal
+  document.getElementById('delete-account-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) hideDeleteAccountModal();
+  });
+  document.getElementById('close-delete-modal').addEventListener('click', hideDeleteAccountModal);
+  document.getElementById('delete-cancel-btn').addEventListener('click', hideDeleteAccountModal);
+  document.getElementById('da-password').addEventListener('keydown', e => { if (e.key === 'Enter') submitDeleteAccount(); });
+  document.getElementById('da-btn').addEventListener('click', submitDeleteAccount);
+})();
