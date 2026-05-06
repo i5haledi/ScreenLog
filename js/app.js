@@ -633,6 +633,23 @@ function setBannerColor(color) {
   save();
 }
 
+// ─── STAR HOVER ───────────────────────────────────────────────────────────────
+function hoverStars(containerId, n) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll('.ep-star').forEach((star, i) => {
+    star.classList.toggle('filled', i < n);
+  });
+}
+
+function resetStars(containerId, rating) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll('.ep-star').forEach((star, i) => {
+    star.classList.toggle('filled', i < rating);
+  });
+}
+
 // ─── EPISODE RATING ───────────────────────────────────────────────────────────
 function rateEp(showId, key, rating) {
   if (!state.shows[showId]) return;
@@ -644,13 +661,17 @@ function rateEp(showId, key, rating) {
   }
   save();
   syncSaveShow(showId);
-  const starsEl = document.getElementById(`ep-stars-${showId}-${key}`);
+  const newRating = state.shows[showId].ratings?.[key] || 0;
+  const starsId   = `ep-stars-${showId}-${key}`;
+  const starsEl   = document.getElementById(starsId);
   if (starsEl) {
-    const r = state.shows[showId].ratings?.[key] || 0;
-    starsEl.innerHTML = [1,2,3,4,5].map(n =>
-      `<span class="ep-star${r >= n ? ' filled' : ''}"
-        onclick="event.stopPropagation();rateEp(${showId},'${key}',${n === r ? 0 : n})">★</span>`
-    ).join('');
+    starsEl.querySelectorAll('.ep-star').forEach((star, i) => {
+      const n = i + 1;
+      star.classList.toggle('filled', n <= newRating);
+      star.setAttribute('onmouseenter', `hoverStars('${starsId}',${n})`);
+      star.setAttribute('onmouseleave', `resetStars('${starsId}',${newRating})`);
+      star.setAttribute('onclick', `event.stopPropagation();rateEp(${showId},'${key}',${n === newRating ? 0 : n})`);
+    });
   }
 }
 
@@ -802,13 +823,14 @@ async function submitComment() {
   };
 
   try {
-    await db.collection('episodeComments').doc(`${showId}_${snum}_${epNum}`).set(
-      { comments: firebase.firestore.FieldValue.arrayUnion(comment) },
-      { merge: true }
-    );
+    const ref      = db.collection('episodeComments').doc(`${showId}_${snum}_${epNum}`);
+    const snap     = await ref.get();
+    const existing = snap.exists ? (snap.data().comments || []) : [];
+    await ref.set({ comments: [...existing, comment] });
     loadAndShowComments();
   } catch(e) {
-    showToast('Failed to post comment');
+    console.error('Comment submit failed:', e);
+    showToast('Failed to post comment: ' + (e.message || e.code || 'unknown error'));
     input.value = text;
   }
 }

@@ -48,7 +48,7 @@ function renderHome() {
       const watchedEps = Object.values(d.watched || {}).filter(Boolean).length;
       const pct       = totalEps > 0 ? Math.round(watchedEps / totalEps * 100) : 0;
       const next      = findNextEpisode(d);
-      const thumb     = show.poster_path ? IMG_SM + show.poster_path : FALLBACK_IMG;
+      const thumb     = (d.customPoster || show.poster_path) ? IMG_SM + (d.customPoster || show.poster_path) : FALLBACK_IMG;
       const hasSeasonsData = state.seasons[show.id] && Object.keys(state.seasons[show.id]).length > 0;
       const epLabel   = next ? next.label : (hasSeasonsData ? 'Up to date' : null);
       const epKey = next ? (() => {
@@ -389,7 +389,7 @@ function showCard(show, status) {
                    : status === 'watchlater' ? '#4ecdc4'
                    : status === 'stopped'    ? '#ff6b6b'
                    : '#7c6aff';
-  const img        = show.poster_path ? IMG + show.poster_path : FALLBACK_IMG;
+  const img        = (d.customPoster || show.poster_path) ? IMG + (d.customPoster || show.poster_path) : FALLBACK_IMG;
   const isSelected = window._selectedShows?.has(String(show.id));
   const inSelectMode = !!window._selectMode;
 
@@ -690,17 +690,14 @@ function renderEpisodesTab(el) {
           const rating  = showData.ratings?.[key] || 0;
           const date    = ep.air_date ? new Date(ep.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
           const isAired = ep.air_date ? new Date(ep.air_date) <= today : true;
-          const stillSrc = ep.still_path ? IMG_STILL + ep.still_path : null;
+          const starsId = `ep-stars-${id}-${key}`;
           const stars = [1,2,3,4,5].map(n =>
             `<span class="ep-star${rating >= n ? ' filled' : ''}"
+              onmouseenter="hoverStars('${starsId}',${n})"
+              onmouseleave="resetStars('${starsId}',${rating})"
               onclick="event.stopPropagation();rateEp(${id},'${key}',${n === rating ? 0 : n})">★</span>`
           ).join('');
           return `<div class="ep-card${done ? ' watched' : ''}">
-            <div class="ep-still-wrap"${!isAired ? ' style="opacity:0.45"' : ''}>
-              ${stillSrc
-                ? `<img src="${stillSrc}" loading="lazy" decoding="async" onerror="this.style.display='none'">`
-                : `<div class="ep-still-placeholder">${ep.episode_number}</div>`}
-            </div>
             <div class="ep-card-body">
               <div class="ep-card-head">
                 <span class="ep-card-num">E${ep.episode_number}</span>
@@ -709,10 +706,10 @@ function renderEpisodesTab(el) {
               <div class="ep-card-meta">
                 ${date ? `<span>${date}</span>` : ''}
                 ${ep.runtime ? `<span>${ep.runtime}m</span>` : ''}
-                ${!isAired ? `<span style="color:var(--accent)">Upcoming</span>` : ''}
+                ${!isAired ? `<span style="color:var(--accent3)">Upcoming</span>` : ''}
               </div>
               <div class="ep-card-actions">
-                <div class="ep-stars" id="ep-stars-${id}-${key}">${stars}</div>
+                <div class="ep-stars" id="${starsId}">${stars}</div>
                 <button class="ep-comment-btn" onclick="event.stopPropagation();openComments(${id},'${snum}',${ep.episode_number})">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                   Comment

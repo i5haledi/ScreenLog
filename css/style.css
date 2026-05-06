@@ -1712,8 +1712,8 @@ html, body {
   transition: color 0.1s, transform 0.1s;
   user-select: none;
 }
-.ep-star:hover     { transform: scale(1.2); color: var(--amber); }
-.ep-star.filled    { color: var(--amber); }
+.ep-star:hover  { color: var(--amber); }
+.ep-star.filled { color: var(--amber); }
 
 /* Comment button in card */
 .ep-comment-btn {
