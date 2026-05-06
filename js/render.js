@@ -35,30 +35,9 @@ function renderSidebarLists() {
 // ─── HOME ────────────────────────────────────────────────────────────────────
 function renderHome() {
   const watching  = getShows('watching');
-  const completed = getShows('completed');
   const watchlist = getShows('watchlist');
-  const upToDate  = completed.filter(d => d.show?.status !== 'Ended' && d.show?.status !== 'Canceled');
-  const allEps    = Object.values(state.shows).reduce((acc, d) => acc + Object.values(d.watched || {}).filter(Boolean).length, 0);
 
-  let html = `
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-label">Watching</div>
-        <div class="stat-value" style="color:var(--amber)">${watching.length}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Completed</div>
-        <div class="stat-value" style="color:var(--accent)">${completed.length}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Up to Date</div>
-        <div class="stat-value" style="color:var(--green)">${upToDate.length}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Episodes Watched</div>
-        <div class="stat-value" style="color:var(--accent2)">${allEps}</div>
-      </div>
-    </div>`;
+  let html = ``;
 
   if (watching.length > 0) {
     html += `<div class="section-header"><div class="section-title">Continue Watching</div></div>`;
@@ -92,6 +71,7 @@ function renderHome() {
           <div class="cw-info">
             <div class="cw-title">${escHtml(show.name)}</div>
             <div class="cw-ep">${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : escHtml(epLabel)}</div>
+            ${next?.tag ? `<span class="cw-tag" style="color:${next.tagColor};background:${next.tagColor}22">${next.tag}</span>` : ''}
             ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark episode as watched">✓ Mark watched</button>` : ''}
           </div>
         </div>`;
@@ -106,7 +86,7 @@ function renderHome() {
     html += `</div>`;
   }
 
-  if (!watching.length && !watchlist.length && !completed.length) {
+  if (!watching.length && !watchlist.length && !Object.keys(state.shows).length) {
     html += `<div class="empty-state">
       <div class="big">▶</div>
       <h3>Your tracker is empty</h3>
@@ -115,6 +95,17 @@ function renderHome() {
   }
 
   document.getElementById('content').innerHTML = html;
+
+  if (!window._fetchingSeasons) window._fetchingSeasons = new Set();
+  watching.forEach(d => {
+    const show = d.show;
+    if (!show) return;
+    const id = String(show.id);
+    if ((!state.seasons[show.id] || !Object.keys(state.seasons[show.id]).length) && !window._fetchingSeasons.has(id)) {
+      window._fetchingSeasons.add(id);
+      loadSeasons(show.id, show).then(() => window._fetchingSeasons.delete(id));
+    }
+  });
 }
 
 // ─── SHELF / ALL ─────────────────────────────────────────────────────────────
