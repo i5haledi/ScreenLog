@@ -63,18 +63,21 @@ function renderHome() {
       })() : null;
 
       html += `
-        <div class="cw-card" onclick="openShow(${show.id})">
-          <div class="cw-poster-wrap">
-            <img class="cw-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
-            <div class="cw-bar-wrap"><div class="cw-bar" style="width:${pct}%"></div></div>
-          </div>
-          <div class="cw-info">
-            <div class="cw-title">${escHtml(show.name)}</div>
-            <div class="cw-ep" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-              ${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : `<span>${escHtml(epLabel)}</span>`}
-              ${next?.tag ? `<span class="cw-tag" style="color:${next.tagColor};background:${next.tagColor}22">${next.tag}</span>` : ''}
+        <div class="cw-swipe-wrap">
+          ${epKey ? `<div class="cw-swipe-bg">✓ Watched</div>` : ''}
+          <div class="cw-card"${epKey ? ` data-showid="${show.id}" data-epkey="${epKey}" data-eplabel="${escHtml(epLabel)}"` : ''} onclick="openShow(${show.id})">
+            <div class="cw-poster-wrap">
+              <img class="cw-thumb" loading="lazy" decoding="async" src="${thumb}" onerror="this.src='${FALLBACK_IMG}'">
+              <div class="cw-bar-wrap"><div class="cw-bar" style="width:${pct}%"></div></div>
             </div>
-            ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark episode as watched">✓ Mark watched</button>` : ''}
+            <div class="cw-info">
+              <div class="cw-title">${escHtml(show.name)}</div>
+              <div class="cw-ep" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                ${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : `<span>${escHtml(epLabel)}</span>`}
+                ${next?.tag ? `<span class="cw-tag" style="color:${next.tagColor};background:${next.tagColor}22">${next.tag}</span>` : ''}
+              </div>
+              ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark episode as watched">✓ Mark watched</button>` : ''}
+            </div>
           </div>
         </div>`;
     });
@@ -97,6 +100,7 @@ function renderHome() {
   }
 
   document.getElementById('content').innerHTML = html;
+  initCwSwipe();
 
   if (!window._fetchingSeasons) window._fetchingSeasons = new Set();
   watching.forEach(d => {
@@ -107,6 +111,56 @@ function renderHome() {
       window._fetchingSeasons.add(id);
       loadSeasons(show.id, show).then(() => window._fetchingSeasons.delete(id));
     }
+  });
+}
+
+// ─── SWIPE TO MARK (mobile) ──────────────────────────────────────────────────
+function initCwSwipe() {
+  if (window.innerWidth > 640) return;
+  document.querySelectorAll('.cw-card[data-epkey]').forEach(card => {
+    const bg = card.previousElementSibling; // .cw-swipe-bg
+    const threshold = card.offsetWidth * 0.45;
+    let startX = 0, startY = 0, currentX = 0;
+    let isTracking = false, isHorizontal = null;
+
+    card.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      currentX = 0; isTracking = true; isHorizontal = null;
+      card.style.transition = 'none';
+      if (bg) bg.style.transition = 'none';
+    }, { passive: true });
+
+    card.addEventListener('touchmove', e => {
+      if (!isTracking) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (isHorizontal === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        isHorizontal = Math.abs(dx) > Math.abs(dy);
+        if (!isHorizontal) { isTracking = false; return; }
+      }
+      if (!isHorizontal) return;
+      currentX = Math.max(0, dx);
+      card.style.transform = `translateX(${currentX}px)`;
+      if (bg) bg.style.opacity = Math.min(currentX / threshold, 1);
+    }, { passive: true });
+
+    card.addEventListener('touchend', () => {
+      if (!isTracking) return;
+      isTracking = false;
+      card.style.transition = 'transform 0.25s ease';
+      if (bg) bg.style.transition = 'opacity 0.25s ease';
+      if (currentX >= threshold) {
+        card.style.transform = `translateX(110%)`;
+        const showId = +card.dataset.showid;
+        const epKey  = card.dataset.epkey;
+        const epLabel = card.dataset.eplabel;
+        setTimeout(() => quickMarkEp(showId, epKey, epLabel), 250);
+      } else {
+        card.style.transform = '';
+        if (bg) bg.style.opacity = 0;
+      }
+    });
   });
 }
 
