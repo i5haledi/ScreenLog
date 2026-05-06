@@ -70,8 +70,10 @@ function renderHome() {
           </div>
           <div class="cw-info">
             <div class="cw-title">${escHtml(show.name)}</div>
-            <div class="cw-ep">${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : escHtml(epLabel)}</div>
-            ${next?.tag ? `<span class="cw-tag" style="color:${next.tagColor};background:${next.tagColor}22">${next.tag}</span>` : ''}
+            <div class="cw-ep" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              ${epLabel === null ? '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;display:inline-block;vertical-align:middle"></span>' : `<span>${escHtml(epLabel)}</span>`}
+              ${next?.tag ? `<span class="cw-tag" style="color:${next.tagColor};background:${next.tagColor}22">${next.tag}</span>` : ''}
+            </div>
             ${epKey ? `<button class="cw-quick-btn" onclick="event.stopPropagation();quickMarkEp(${show.id},'${epKey}','${epLabel}')" title="Mark episode as watched">✓ Mark watched</button>` : ''}
           </div>
         </div>`;
