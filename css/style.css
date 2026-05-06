@@ -582,8 +582,6 @@ html, body {
 
 /* ─── RESPONSIVE: TABLET ─────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .cw-grid   { grid-template-columns: 1fr; }
   .show-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .search-wrap { width: 260px; }
 }
@@ -620,21 +618,41 @@ html, body {
   /* Content */
   #content { padding: 16px; }
 
-  /* Stats 2 columns */
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  .stat-card { padding: 14px 16px; }
-  .stat-value { font-size: 28px; }
-
   /* Show grid 2 columns */
   .show-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
-  /* Continue watching */
-  .cw-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; }
-  .cw-thumb { width: 70px; }
+  /* Continue watching — vertical list on mobile */
+  .cw-scroll {
+    flex-direction: column;
+    overflow-x: visible;
+    padding-bottom: 0;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .cw-card {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    border-radius: 12px;
+  }
+  .cw-poster-wrap {
+    width: 80px;
+    flex-shrink: 0;
+    aspect-ratio: unset;
+    height: auto;
+  }
+  .cw-info {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    justify-content: center;
+  }
+  .cw-quick-btn {
+    margin-top: 8px;
+    padding: 6px 0;
+    font-size: 11px;
+  }
 
   /* Modal full screen */
   .modal-overlay { padding: 0; align-items: flex-end; }
