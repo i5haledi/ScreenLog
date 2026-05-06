@@ -1,0 +1,35 @@
+{
+  "env": {
+    "browser": true,
+    "es2020": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020
+  },
+  "globals": {
+    "firebase": "readonly",
+    "auth": "readonly",
+    "db": "readonly",
+    "state": "writable",
+    "currentUser": "writable",
+    "currentUsername": "writable",
+    "currentShow": "writable",
+    "TMDB": "readonly",
+    "TMDB_KEY": "readonly",
+    "TMDB_TOKEN": "readonly",
+    "IMG": "readonly",
+    "IMG_SM": "readonly",
+    "IMG_LG": "readonly",
+    "HEADERS": "readonly",
+    "FALLBACK_IMG": "readonly",
+    "COLORS": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-undef": "error",
+    "no-empty": ["error", { "allowEmptyCatch": false }],
+    "eqeqeq": ["warn", "always"],
+    "no-console": "off",
+    "semi": ["warn", "always"]
+  }
+}

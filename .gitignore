@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets
+# NOTE: js/config.js contains TMDB API keys — do NOT commit real keys.
+# Copy js/config.example.js to js/config.js and fill in your own values.
+js/config.js
+
+# Firebase config — same applies
+# js/firebase-config.js
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build output (if a bundler is added later)
+dist/
+build/
