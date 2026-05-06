@@ -155,5 +155,5 @@ function checkUpToDate(showId) {
 }
 
 function runUpToDateCheck() {
-  Object.keys(state.shows).forEach(id => checkUpToDate(id));
+  Object.keys(state.shows).forEach(id => { checkDowngrade(id); checkUpToDate(id); });
 }
