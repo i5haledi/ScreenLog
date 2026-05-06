@@ -80,6 +80,10 @@ async function doSearch(q) {
   }
 }
 
+async function fetchShowImages(showId) {
+  return tmdbFetch(`${TMDB}/tv/${showId}/images`).then(r => r.json()).catch(() => ({}));
+}
+
 function addShowFromSearch(show, status) {
   state.shows[show.id] = { show, status, watched: {} };
   save();

@@ -633,6 +633,199 @@ function setBannerColor(color) {
   save();
 }
 
+// ─── EPISODE RATING ───────────────────────────────────────────────────────────
+function rateEp(showId, key, rating) {
+  if (!state.shows[showId]) return;
+  if (!state.shows[showId].ratings) state.shows[showId].ratings = {};
+  if (rating === 0) {
+    delete state.shows[showId].ratings[key];
+  } else {
+    state.shows[showId].ratings[key] = rating;
+  }
+  save();
+  syncSaveShow(showId);
+  const starsEl = document.getElementById(`ep-stars-${showId}-${key}`);
+  if (starsEl) {
+    const r = state.shows[showId].ratings?.[key] || 0;
+    starsEl.innerHTML = [1,2,3,4,5].map(n =>
+      `<span class="ep-star${r >= n ? ' filled' : ''}"
+        onclick="event.stopPropagation();rateEp(${showId},'${key}',${n === r ? 0 : n})">★</span>`
+    ).join('');
+  }
+}
+
+// ─── POSTER PICKER ────────────────────────────────────────────────────────────
+async function openPosterPicker(showId) {
+  if (!showId || !state.shows[showId]) return;
+  window._posterPickerShowId = showId;
+  document.getElementById('poster-picker-modal').style.display = 'flex';
+  const grid = document.getElementById('poster-picker-grid');
+  grid.innerHTML = `<div style="text-align:center;padding:50px;grid-column:1/-1"><div class="spinner"></div></div>`;
+
+  try {
+    const data    = await fetchShowImages(showId);
+    const posters = (data.posters || [])
+      .sort((a, b) => b.vote_average - a.vote_average)
+      .slice(0, 24);
+    const current = state.shows[showId]?.customPoster || state.shows[showId]?.show?.poster_path || null;
+
+    if (!posters.length) {
+      grid.innerHTML = `<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--text-muted)">No alternate posters available</div>`;
+      return;
+    }
+    grid.innerHTML = posters.map(p =>
+      `<div class="poster-pick-item${p.file_path === current ? ' current' : ''}" onclick="setPoster(${showId},'${p.file_path}')">
+        <img src="${IMG}${p.file_path}" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'">
+      </div>`
+    ).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--text-muted)">Failed to load posters</div>`;
+  }
+}
+
+function closePosterPicker() {
+  document.getElementById('poster-picker-modal').style.display = 'none';
+  window._posterPickerShowId = null;
+}
+
+function setPoster(showId, path) {
+  if (!state.shows[showId]) return;
+  state.shows[showId].customPoster = path;
+  save();
+  syncSaveShow(showId);
+  closePosterPicker();
+  const posterEl = document.getElementById('m-poster');
+  if (posterEl) posterEl.src = IMG_LG + path;
+  showToast('Poster updated');
+  render();
+}
+
+// ─── EPISODE COMMENTS ─────────────────────────────────────────────────────────
+let _currentCommentCtx = null;
+
+function formatTimeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000)      return 'just now';
+  if (diff < 3600000)    return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000)   return Math.floor(diff / 3600000) + 'h ago';
+  if (diff < 2592000000) return Math.floor(diff / 86400000) + 'd ago';
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function openComments(showId, snum, epNum) {
+  const key     = `${snum}_${epNum}`;
+  const watched = !!state.shows[showId]?.watched?.[key];
+  const ep      = state.seasons[showId]?.[snum]?.episodes?.find(e => e.episode_number == epNum);
+  const show    = state.shows[showId]?.show;
+
+  _currentCommentCtx = { showId, snum, epNum, key };
+  document.getElementById('comments-modal-title').textContent = show?.name || 'Comments';
+  document.getElementById('comments-ep-label').textContent    = `S${snum}E${epNum}${ep?.name ? ' · ' + ep.name : ''}`;
+  document.getElementById('comments-modal').style.display     = 'flex';
+
+  if (!watched) {
+    document.getElementById('comments-spoiler-gate').style.display = 'block';
+    document.getElementById('comments-body').style.display          = 'none';
+  } else {
+    document.getElementById('comments-spoiler-gate').style.display = 'none';
+    document.getElementById('comments-body').style.display          = 'block';
+    loadAndShowComments();
+  }
+}
+
+function revealComments() {
+  document.getElementById('comments-spoiler-gate').style.display = 'none';
+  document.getElementById('comments-body').style.display          = 'block';
+  loadAndShowComments();
+}
+
+function closeComments() {
+  document.getElementById('comments-modal').style.display = 'none';
+  _currentCommentCtx = null;
+}
+
+async function loadAndShowComments() {
+  if (!_currentCommentCtx) return;
+  const { showId, snum, epNum } = _currentCommentCtx;
+  const listEl = document.getElementById('comments-list');
+  if (!listEl) return;
+  listEl.innerHTML = `<div style="text-align:center;padding:24px"><div class="spinner"></div></div>`;
+
+  try {
+    const snap     = await db.collection('episodeComments').doc(`${showId}_${snum}_${epNum}`).get();
+    const comments = snap.exists ? (snap.data().comments || []).sort((a, b) => a.ts - b.ts) : [];
+
+    if (!comments.length) {
+      listEl.innerHTML = `<div style="text-align:center;padding:28px;color:var(--text-muted);font-size:13px">No comments yet. Be the first!</div>`;
+      return;
+    }
+
+    listEl.innerHTML = comments.map(c => {
+      const initial = (c.username || '?')[0].toUpperCase();
+      const isOwn   = c.uid === currentUser?.uid;
+      return `<div class="comment-item">
+        <div class="comment-avatar">
+          ${c.profilePic ? `<img src="${escHtml(c.profilePic)}" loading="lazy">` : escHtml(initial)}
+        </div>
+        <div class="comment-body">
+          <div class="comment-header">
+            <span class="comment-username">@${escHtml(c.username || 'unknown')}</span>
+            <span class="comment-time">${formatTimeAgo(c.ts)}</span>
+            ${isOwn ? `<button class="comment-delete-btn" onclick="deleteComment('${showId}','${snum}','${epNum}',${c.id})">Delete</button>` : ''}
+          </div>
+          <div class="comment-text">${escHtml(c.text)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center;font-size:13px">Failed to load comments</div>`;
+  }
+}
+
+async function submitComment() {
+  if (!_currentCommentCtx || !currentUser) return;
+  const { showId, snum, epNum } = _currentCommentCtx;
+  const input = document.getElementById('comment-input');
+  const text  = (input?.value || '').trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = '';
+
+  const comment = {
+    id:         Date.now() + Math.random(),
+    uid:        currentUser.uid,
+    username:   currentUsername || 'unknown',
+    profilePic: state.profilePic || null,
+    text,
+    ts:         Date.now(),
+  };
+
+  try {
+    await db.collection('episodeComments').doc(`${showId}_${snum}_${epNum}`).set(
+      { comments: firebase.firestore.FieldValue.arrayUnion(comment) },
+      { merge: true }
+    );
+    loadAndShowComments();
+  } catch(e) {
+    showToast('Failed to post comment');
+    input.value = text;
+  }
+}
+
+async function deleteComment(showId, snum, epNum, commentId) {
+  try {
+    const ref  = db.collection('episodeComments').doc(`${showId}_${snum}_${epNum}`);
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const filtered = (snap.data().comments || []).filter(c => c.id !== commentId);
+    await ref.set({ comments: filtered });
+    loadAndShowComments();
+  } catch(e) {
+    showToast('Failed to delete comment');
+  }
+}
+
 // ─── EVENT LISTENER INITIALIZATION ───────────────────────────────────────────
 (function initAppListeners() {
   // Sidebar navigation — event delegation handles all nav-item clicks

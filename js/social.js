@@ -137,6 +137,93 @@ async function loadUserProfile(uid) {
   } catch(e) { return null; }
 }
 
+// ─── FOLLOWER COUNTS ─────────────────────────────────────────────────────────
+async function loadFollowerCount(uid) {
+  try {
+    const snap = await db.collection('follows').where('followeeId', '==', uid).get();
+    return snap.size;
+  } catch(e) { return 0; }
+}
+
+async function loadFollowingCount(uid) {
+  try {
+    const snap = await db.collection('follows').where('followerId', '==', uid).get();
+    return snap.size;
+  } catch(e) { return 0; }
+}
+
+// ─── FOLLOWERS / FOLLOWING MODAL ─────────────────────────────────────────────
+async function openFollowModal(type, uid) {
+  if (!uid) return;
+  document.getElementById('follow-list-title').textContent = type === 'followers' ? 'Followers' : 'Following';
+  document.getElementById('follow-list-modal').style.display = 'flex';
+  const listEl = document.getElementById('follow-list-content');
+  listEl.innerHTML = `<div style="text-align:center;padding:30px"><div class="spinner"></div></div>`;
+
+  let users = [];
+  try {
+    if (type === 'following') {
+      if (uid === currentUser?.uid) {
+        users = Object.entries(_following).map(([fuid, info]) => ({ uid: fuid, username: info.username, profilePic: info.profilePic }));
+      } else {
+        const snap = await db.collection('follows').where('followerId', '==', uid).get();
+        const uids = [];
+        snap.forEach(doc => uids.push(doc.data().followeeId));
+        users = await Promise.all(uids.map(fuid => _fetchPublicProfile(fuid)));
+      }
+    } else {
+      const snap = await db.collection('follows').where('followeeId', '==', uid).get();
+      const uids = [];
+      snap.forEach(doc => uids.push(doc.data().followerId));
+      users = await Promise.all(uids.map(fuid => _fetchPublicProfile(fuid)));
+    }
+  } catch(e) {
+    listEl.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:16px 0;text-align:center">Failed to load</div>`;
+    return;
+  }
+
+  if (!users.length) {
+    listEl.innerHTML = `<div style="color:var(--text-muted);font-size:14px;padding:24px 0;text-align:center">No ${type} yet</div>`;
+    return;
+  }
+
+  listEl.innerHTML = users.map(u => {
+    if (!u) return '';
+    const pic      = u.profilePic;
+    const initial  = (u.username || '?')[0].toUpperCase();
+    const isSelf   = u.uid === currentUser?.uid;
+    const following = isFollowing(u.uid);
+    return `<div class="follow-user-item" onclick="closeFollowModal();viewUser('${u.uid}')">
+      <div class="follow-user-avatar">
+        ${pic ? `<img src="${escHtml(pic)}" loading="lazy">` : `<span>${escHtml(initial)}</span>`}
+      </div>
+      <div class="follow-user-name">@${escHtml(u.username || u.uid)}</div>
+      ${!isSelf ? `<button class="people-follow-btn${following ? ' following' : ''}" data-uid="${u.uid}"
+        onclick="event.stopPropagation();toggleFollow('${u.uid}')">
+        ${following ? '✓ Following' : '+ Follow'}
+      </button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function _fetchPublicProfile(uid) {
+  if (window._upCache?.[uid]?.username) return window._upCache[uid];
+  try {
+    const snap = await db.collection('publicProfiles').doc(uid).get();
+    if (snap.exists) {
+      const d = { uid, ...snap.data() };
+      if (!window._upCache) window._upCache = {};
+      window._upCache[uid] = d;
+      return d;
+    }
+  } catch(e) { /* ignore */ }
+  return { uid, username: uid, profilePic: null };
+}
+
+function closeFollowModal() {
+  document.getElementById('follow-list-modal').style.display = 'none';
+}
+
 // ─── DISCOVER USERS ───────────────────────────────────────────────────────────
 async function loadDiscoverUsers(limit = 30) {
   try {

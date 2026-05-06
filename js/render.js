@@ -551,7 +551,8 @@ async function openShow(id) {
 }
 
 function _populateModal(show, id) {
-  const img    = show.poster_path ? IMG_LG + show.poster_path : FALLBACK_IMG;
+  const customPoster = state.shows[id]?.customPoster;
+  const img = customPoster ? IMG_LG + customPoster : (show.poster_path ? IMG_LG + show.poster_path : FALLBACK_IMG);
   const year   = (show.first_air_date || '').slice(0, 4);
   const eps    = show.number_of_episodes ? ` · ${show.number_of_episodes} eps` : '';
   const seas   = show.number_of_seasons  ? `${show.number_of_seasons} seasons` : '';
@@ -566,7 +567,10 @@ function _populateModal(show, id) {
       </a>`
     : '';
 
+  window._currentShowId = id;
   document.getElementById('m-poster').src = img;
+  const editBtn = document.getElementById('m-poster-edit-btn');
+  if (editBtn) editBtn.style.display = state.shows[id] ? 'block' : 'none';
   document.getElementById('m-meta').innerHTML = `
     <span>${[seas].filter(Boolean).join(' · ')}${eps}</span>
     <span style="display:inline-flex;align-items:center;gap:8px;margin-left:6px">
@@ -658,6 +662,8 @@ function renderEpisodesTab(el) {
   if (!window.openSeasons) window.openSeasons = {};
   if (window.openSeasons[String(id)] === undefined) window.openSeasons[String(id)] = null;
 
+  const today = new Date(); today.setHours(23, 59, 59, 999);
+
   let html = '';
   seasonNums.forEach(snum => {
     const eps          = seasonsData[snum]?.episodes || [];
@@ -677,19 +683,43 @@ function renderEpisodesTab(el) {
           </button>
         </div>
       </div>
-      <div class="episode-list" style="display:${isOpen ? 'flex' : 'none'};flex-direction:column">
+      <div class="episode-list" style="display:${isOpen ? 'flex' : 'none'};flex-direction:column;gap:4px">
         ${eps.map(ep => {
-          const key  = `${snum}_${ep.episode_number}`;
-          const done = !!showData.watched?.[key];
-          const date = ep.air_date ? new Date(ep.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-          return `<div class="episode-row" onclick="toggleEp(${id},'${key}')">
-            <div class="ep-check${done ? ' done' : ''}"></div>
-            <div class="ep-num">${ep.episode_number}</div>
-            <div class="ep-title">${escHtml(ep.name || 'Episode ' + ep.episode_number)}</div>
-            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-              ${date ? `<div class="ep-runtime" style="color:var(--text-muted)">${date}</div>` : ''}
-              ${ep.runtime ? `<div class="ep-runtime">${ep.runtime}m</div>` : ''}
+          const key     = `${snum}_${ep.episode_number}`;
+          const done    = !!showData.watched?.[key];
+          const rating  = showData.ratings?.[key] || 0;
+          const date    = ep.air_date ? new Date(ep.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          const isAired = ep.air_date ? new Date(ep.air_date) <= today : true;
+          const stillSrc = ep.still_path ? IMG_STILL + ep.still_path : null;
+          const stars = [1,2,3,4,5].map(n =>
+            `<span class="ep-star${rating >= n ? ' filled' : ''}"
+              onclick="event.stopPropagation();rateEp(${id},'${key}',${n === rating ? 0 : n})">★</span>`
+          ).join('');
+          return `<div class="ep-card${done ? ' watched' : ''}">
+            <div class="ep-still-wrap"${!isAired ? ' style="opacity:0.45"' : ''}>
+              ${stillSrc
+                ? `<img src="${stillSrc}" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+                : `<div class="ep-still-placeholder">${ep.episode_number}</div>`}
             </div>
+            <div class="ep-card-body">
+              <div class="ep-card-head">
+                <span class="ep-card-num">E${ep.episode_number}</span>
+                <span class="ep-card-title">${escHtml(ep.name || 'Episode ' + ep.episode_number)}</span>
+              </div>
+              <div class="ep-card-meta">
+                ${date ? `<span>${date}</span>` : ''}
+                ${ep.runtime ? `<span>${ep.runtime}m</span>` : ''}
+                ${!isAired ? `<span style="color:var(--accent)">Upcoming</span>` : ''}
+              </div>
+              <div class="ep-card-actions">
+                <div class="ep-stars" id="ep-stars-${id}-${key}">${stars}</div>
+                <button class="ep-comment-btn" onclick="event.stopPropagation();openComments(${id},'${snum}',${ep.episode_number})">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                  Comment
+                </button>
+              </div>
+            </div>
+            <div class="ep-card-check${done ? ' done' : ''}" onclick="toggleEp(${id},'${key}')"></div>
           </div>`;
         }).join('')}
       </div>
@@ -906,6 +936,14 @@ function renderProfile() {
           <div class="pp-hero-name">${escHtml(uname)}</div>
           <div class="pp-hero-handle">@${escHtml(uname)}</div>
           ${joinDate ? `<div class="pp-hero-since">Member since ${joinDate}</div>` : ''}
+          <div class="pp-follow-row">
+            <span class="pp-follow-stat" onclick="openFollowModal('following','${currentUser?.uid}')">
+              <strong>${Object.keys(_following).length}</strong> Following
+            </span>
+            <span class="pp-follow-stat" id="pp-follower-count-stat" onclick="openFollowModal('followers','${currentUser?.uid}')">
+              <strong id="pp-follower-num">···</strong> Followers
+            </span>
+          </div>
         </div>
         <div class="pp-hero-stats">
           <div class="pp-hstat"><div class="pp-hstat-v">${allShows.length}</div><div class="pp-hstat-l">Shows</div></div>
@@ -1034,6 +1072,14 @@ function renderProfile() {
       </div>
     </div>
   </div>`;
+
+  // Async load follower count
+  if (currentUser) {
+    loadFollowerCount(currentUser.uid).then(count => {
+      const el = document.getElementById('pp-follower-num');
+      if (el) el.textContent = count;
+    });
+  }
 }
 
 // ─── PEOPLE ───────────────────────────────────────────────────────────────────
@@ -1228,7 +1274,15 @@ async function renderUserProfileView(uid) {
       <div class="prof2-info">
         <div class="prof2-username">@${escHtml(uname)}</div>
         <div class="prof2-since" style="margin-top:4px">${stats.watching || 0} watching · ${stats.completed || 0} completed · ${stats.watchlist || 0} watchlist</div>
-        <div style="margin-top:14px">
+        <div class="prof2-follow-row">
+          <span class="prof2-follow-stat" onclick="openFollowModal('following','${uid}')">
+            <strong id="prof2-following-num-${uid}">···</strong> Following
+          </span>
+          <span class="prof2-follow-stat" onclick="openFollowModal('followers','${uid}')">
+            <strong id="prof2-follower-num-${uid}">···</strong> Followers
+          </span>
+        </div>
+        <div style="margin-top:12px">
           <button id="follow-btn-${uid}" class="btn${following ? '' : ' primary'}"
             onclick="toggleFollow('${uid}')">
             ${following ? '✓ Following' : '+ Follow'}
@@ -1325,6 +1379,17 @@ async function renderUserProfileView(uid) {
       </div>
     </div>
   </div>`;
+
+  // Async load follower/following counts for this user profile
+  Promise.all([
+    loadFollowerCount(uid),
+    loadFollowingCount(uid),
+  ]).then(([followers, followingCount]) => {
+    const fn = document.getElementById(`prof2-follower-num-${uid}`);
+    const ff = document.getElementById(`prof2-following-num-${uid}`);
+    if (fn) fn.textContent = followers;
+    if (ff) ff.textContent = followingCount;
+  });
 }
 
 function setUserProfileFilter(uid, f) {

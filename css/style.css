@@ -1633,3 +1633,206 @@ html, body {
   .prof2-hero-inner    { gap: 14px; }
   .prof2-username      { font-size: 22px; }
 }
+
+/* ─── MODAL POSTER EDIT ──────────────────────────────────────────────────── */
+.modal-poster-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 90px;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.modal-poster-wrap .modal-poster { border-radius: 0; }
+.poster-edit-btn {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.82);
+  color: rgba(255,255,255,0.9);
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-family: 'Thmanyah Sans', sans-serif;
+  letter-spacing: 0.3px;
+}
+.modal-poster-wrap:hover .poster-edit-btn { opacity: 1; }
+
+/* ─── EPISODE CARDS ──────────────────────────────────────────────────────── */
+.ep-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+.ep-card:hover { background: rgba(255,255,255,0.025); border-color: var(--border); }
+.ep-card.watched { border-left: 2px solid var(--accent); padding-left: 9px; }
+
+.ep-still-wrap {
+  width: 112px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.ep-still-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ep-still-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--text-muted); font-weight: 700;
+}
+
+.ep-card-body { flex: 1; min-width: 0; padding-top: 1px; }
+.ep-card-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+.ep-card-num  { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.ep-card-title {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ep-card-meta {
+  font-size: 11px; color: var(--text-muted);
+  display: flex; gap: 8px; margin-bottom: 9px;
+}
+.ep-card-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Star rating */
+.ep-stars { display: flex; gap: 1px; }
+.ep-star {
+  font-size: 14px; color: var(--border-hover);
+  cursor: pointer; line-height: 1;
+  transition: color 0.1s, transform 0.1s;
+  user-select: none;
+}
+.ep-star:hover     { transform: scale(1.2); color: var(--amber); }
+.ep-star.filled    { color: var(--amber); }
+
+/* Comment button in card */
+.ep-comment-btn {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--text-muted);
+  background: none; border: 1px solid transparent;
+  cursor: pointer; font-family: 'Thmanyah Sans';
+  padding: 3px 8px; border-radius: 6px;
+  transition: all 0.15s;
+}
+.ep-comment-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+/* Watched toggle in card */
+.ep-card-check {
+  flex-shrink: 0; align-self: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--border-hover);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  margin-top: 2px;
+}
+.ep-card-check:hover { border-color: var(--accent); background: var(--accent-glow); }
+.ep-card-check.done  { background: var(--accent); border-color: var(--accent); }
+.ep-card-check.done::after { content: '✓'; font-size: 11px; color: white; font-weight: 700; }
+
+/* ─── POSTER PICKER GRID ─────────────────────────────────────────────────── */
+.poster-pick-item {
+  cursor: pointer; border-radius: 9px; overflow: hidden;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, transform 0.15s;
+  position: relative;
+}
+.poster-pick-item:hover { border-color: var(--accent); transform: scale(1.03); }
+.poster-pick-item.current { border-color: var(--green); }
+.poster-pick-item.current::after {
+  content: '✓';
+  position: absolute; top: 6px; right: 6px;
+  background: var(--green); color: white;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+}
+.poster-pick-item img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+
+/* ─── COMMENTS ───────────────────────────────────────────────────────────── */
+.comment-item {
+  display: flex; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.comment-item:last-child { border-bottom: none; }
+.comment-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--bg-elevated); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.comment-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.comment-body { flex: 1; min-width: 0; }
+.comment-header {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 3px;
+}
+.comment-username { font-size: 12px; font-weight: 600; }
+.comment-time     { font-size: 11px; color: var(--text-muted); }
+.comment-text     { font-size: 13px; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+.comment-delete-btn {
+  background: none; border: none; font-size: 11px; color: var(--text-muted);
+  cursor: pointer; margin-left: auto; padding: 1px 5px; border-radius: 4px;
+  opacity: 0; transition: opacity 0.15s, color 0.15s;
+}
+.comment-item:hover .comment-delete-btn { opacity: 1; }
+.comment-delete-btn:hover { color: var(--red); }
+
+/* ─── FOLLOW LIST MODAL ──────────────────────────────────────────────────── */
+.follow-user-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 6px; border-radius: 10px;
+  cursor: pointer; transition: background 0.1s;
+}
+.follow-user-item:hover { background: var(--bg-elevated); }
+.follow-user-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-elevated); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.follow-user-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.follow-user-name { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; }
+
+/* Follow stats in own profile hero */
+.pp-follow-row {
+  display: flex; align-items: center; gap: 14px; margin-top: 8px;
+}
+.pp-follow-stat {
+  font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; transition: color 0.15s;
+}
+.pp-follow-stat:hover  { color: var(--text-primary); }
+.pp-follow-stat strong { color: var(--text-primary); font-weight: 600; margin-right: 2px; }
+
+/* Follow stats in other user profile hero */
+.prof2-follow-row {
+  display: flex; align-items: center; gap: 14px; margin-top: 6px;
+}
+.prof2-follow-stat {
+  font-size: 12px; color: rgba(255,255,255,0.5);
+  cursor: pointer; transition: color 0.15s;
+}
+.prof2-follow-stat:hover  { color: rgba(255,255,255,0.85); }
+.prof2-follow-stat strong { color: rgba(255,255,255,0.85); font-weight: 600; margin-right: 2px; }
+
+@media (max-width: 640px) {
+  .ep-still-wrap { width: 80px; }
+  .ep-card-title { font-size: 12px; }
+}

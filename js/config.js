@@ -5,6 +5,7 @@ const TMDB       = 'https://api.themoviedb.org/3';
 const IMG        = 'https://image.tmdb.org/t/p/w500';
 const IMG_SM     = 'https://image.tmdb.org/t/p/w342';
 const IMG_LG     = 'https://image.tmdb.org/t/p/w780';
+const IMG_STILL  = 'https://image.tmdb.org/t/p/w300';
 const HEADERS    = { 'Authorization': `Bearer ${TMDB_TOKEN}`, 'Content-Type': 'application/json' };
 
 const FALLBACK_IMG = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiB2aWV3Qm94PSIwIDAgMTAwIDE1MCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiMyMjI2M2EiLz48cmVjdCB4PSIzNSIgeT0iNTUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIyMCIgcng9IjMiIGZpbGw9IiM0YTRkNjYiLz48cmVjdCB4PSIyNSIgeT0iNzgiIHdpZHRoPSI1MCIgaGVpZ2h0PSIzIiByeD0iMiIgZmlsbD0iIzRhNGQ2NiIvPjwvc3ZnPg==';

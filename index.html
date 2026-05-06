@@ -132,7 +132,10 @@
 <div class="modal-overlay" id="show-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="m-title">
   <div class="modal" id="modal-box">
     <div class="modal-header">
-      <img class="modal-poster" id="m-poster" src="" alt="">
+      <div class="modal-poster-wrap">
+        <img class="modal-poster" id="m-poster" src="" alt="">
+        <button id="m-poster-edit-btn" class="poster-edit-btn" style="display:none" onclick="openPosterPicker(window._currentShowId)">Change Poster</button>
+      </div>
       <div class="modal-info">
         <div class="modal-title" id="m-title"></div>
         <div class="modal-meta" id="m-meta"></div>
@@ -253,6 +256,75 @@
       <div style="display:flex;gap:10px">
         <button class="btn" id="delete-cancel-btn" style="flex:1">Cancel</button>
         <button class="btn danger" id="da-btn" style="flex:1;background:rgba(255,91,91,0.12)">Delete My Account</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POSTER PICKER MODAL -->
+<div class="modal-overlay" id="poster-picker-modal" style="display:none" onclick="if(event.target===this)closePosterPicker()">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header" style="border-bottom:1px solid var(--border)">
+      <div class="modal-info">
+        <div class="modal-title">Choose Poster</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Select an alternate TMDB poster</div>
+      </div>
+      <button class="modal-close" onclick="closePosterPicker()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:500px;overflow-y:auto">
+      <div id="poster-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;padding:4px">
+        <div style="text-align:center;padding:40px;grid-column:1/-1"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EPISODE COMMENTS MODAL -->
+<div class="modal-overlay" id="comments-modal" style="display:none" onclick="if(event.target===this)closeComments()">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header" style="border-bottom:1px solid var(--border)">
+      <div class="modal-info">
+        <div class="modal-title" id="comments-modal-title" style="font-size:20px">Comments</div>
+        <div id="comments-ep-label" style="font-size:12px;color:var(--text-secondary);margin-top:3px"></div>
+      </div>
+      <button class="modal-close" onclick="closeComments()">×</button>
+    </div>
+    <div id="comments-spoiler-gate" style="display:none;padding:32px 24px;text-align:center">
+      <div style="font-size:36px;margin-bottom:14px">⚠️</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px">Spoiler Warning</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:22px;line-height:1.6">You haven't watched this episode yet.<br>Comments may contain spoilers.</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" onclick="closeComments()">Go Back</button>
+        <button class="btn primary" onclick="revealComments()">Show Anyway</button>
+      </div>
+    </div>
+    <div id="comments-body" style="display:none">
+      <div class="modal-body" style="max-height:320px;overflow-y:auto;padding-bottom:8px">
+        <div id="comments-list"></div>
+      </div>
+      <div style="padding:12px 20px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end">
+        <textarea id="comment-input" class="input-field" placeholder="Add a comment…"
+          style="resize:none;min-height:38px;max-height:100px;line-height:1.5;padding:8px 12px;flex:1;font-size:13px"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment()}"></textarea>
+        <button class="btn primary" onclick="submitComment()" style="flex-shrink:0;padding:8px 16px;align-self:flex-end">Post</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOLLOWERS / FOLLOWING MODAL -->
+<div class="modal-overlay" id="follow-list-modal" style="display:none" onclick="if(event.target===this)closeFollowModal()">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-info">
+        <div class="modal-title" id="follow-list-title" style="font-size:22px">Followers</div>
+      </div>
+      <button class="modal-close" onclick="closeFollowModal()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:460px;overflow-y:auto;padding-top:6px">
+      <div id="follow-list-content">
+        <div style="text-align:center;padding:30px"><div class="spinner"></div></div>
       </div>
     </div>
   </div>
